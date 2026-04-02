@@ -54,8 +54,6 @@ services:
     image: redis:alpine
     container_name: larahostpanel_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     networks:
       - larahostpanel
 
