@@ -20,6 +20,14 @@ if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:" ]; then
     php artisan key:generate --force
 fi
 
+# Install npm dependencies and build assets
+if [ ! -d "node_modules" ]; then
+    echo "Installing npm dependencies..."
+    npm install
+fi
+echo "Building front-end assets..."
+npm run build
+
 # Run migrations
 echo "Running migrations..."
 php artisan migrate --force
