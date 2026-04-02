@@ -33,8 +33,9 @@ services:
     image: mysql:8.0
     container_name: larahostpanel_mysql
     restart: unless-stopped
+    command: --authentication_policy=caching_sha2_password
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
     environment:
       MYSQL_DATABASE: ${DB_DATABASE:-larahostpanel}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
@@ -64,8 +65,8 @@ services:
     ports:
       - "${PHPMYADMIN_PORT:-8080}:80"
     environment:
-      PMA_HOST: mysql
-      PMA_PORT: 3306
+      PMA_HOST: ${DB_HOST:-mysql}
+      PMA_PORT: ${DB_PORT:-3306}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
     networks:
       - larahostpanel
