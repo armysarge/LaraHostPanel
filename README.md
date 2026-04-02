@@ -82,7 +82,16 @@ docker compose up -d --build
 ```bash
 docker exec larahostpanel_app php artisan key:generate
 docker exec larahostpanel_app php artisan migrate --force
+docker exec larahostpanel_app php artisan db:seed
 ```
+
+> **Default login credentials**
+> | Field | Value |
+> |---|---|
+> | Email | `admin@larahostpanel.local` |
+> | Password | `password` |
+>
+> **Change these immediately after first login.** Update `database/seeders/DatabaseSeeder.php` before seeding, or change your password through the panel after logging in.
 
 ### 5. Open the panel
 

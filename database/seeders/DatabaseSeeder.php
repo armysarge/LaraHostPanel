@@ -17,9 +17,11 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
+        // TODO: Change these default credentials before deploying to production.
         User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            'name' => 'Admin',
+            'email' => 'admin@larahostpanel.local',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
         ]);
     }
 }
