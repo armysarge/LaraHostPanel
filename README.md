@@ -13,6 +13,12 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square"/>
 </p>
 
+<p align="center">
+[![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange)](https://github.com/armysarge/FantasyWorld)
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-brightgreen?logo=buymeacoffee)](https://www.buymeacoffee.com/armysarge)
+</p>
+
 ---
 
 ## Overview
@@ -163,6 +169,19 @@ The interval and behaviour can be configured per project.
 
 ---
 
-## License
+## 🤝 Contributing
 
-MIT — see [LICENSE](LICENSE) for details.
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## 📄 License
+
+This project is licensed under the AGPL License - see the [LICENSE](LICENSE) file for details.
+
+## ☕ Buy me a coffee
+
+If you like this project, consider buying me a coffee to keep me motivated!
+
+[![Buy me a coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=armysarge&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://buymeacoffee.com/armysarge)
+---
+
+Built with ❤️ for the D&D community
