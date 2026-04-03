@@ -18,10 +18,10 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "php -r \"if(!($$s=@fsockopen('127.0.0.1',9000,$$e,$$m,3)))exit(1);fclose($$s);\""]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "php -r 'try { new PDO(\"mysql:host=${DB_HOST:-mysql};port=${DB_PORT:-3306};dbname=${DB_DATABASE:-larahostpanel}\", \"${DB_USERNAME:-larahostpanel}\", \"${DB_PASSWORD:-secret}\"); echo \"OK\"; } catch (Exception $e) { echo \"FAIL\"; }' | grep OK || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
       start_period: 120s
 
   nginx:
