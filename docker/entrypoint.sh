@@ -3,7 +3,7 @@ set -e
 
 # Wait for MySQL to be ready
 echo "Waiting for MySQL..."
-until php -r "new PDO('mysql:host=${DB_HOST:-mysql};port=${DB_PORT:-3306};dbname=${DB_DATABASE:-larahostpanel}', '${DB_USERNAME:-larahostpanel}', '${DB_PASSWORD:-secret}');" 2>/dev/null; do
+until php -r "new PDO('mysql:host=${DB_HOST:-mysql};port=${DB_PORT:-3306};dbname=${DB_DATABASE:-larahostpanel}', '${DB_USERNAME:-larahostpanel}', '${DB_PASSWORD:-secret}');" >/dev/null 2>&1; do
     sleep 2
 done
 echo "MySQL is ready."

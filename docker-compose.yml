@@ -14,6 +14,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "php -r \"if(!($$s=@fsockopen('127.0.0.1',9000,$$e,$$m,3)))exit(1);fclose($$s);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
   nginx:
     image: nginx:alpine
@@ -27,7 +33,8 @@ services:
     networks:
       - larahostpanel
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.0
@@ -46,10 +53,11 @@ services:
     networks:
       - larahostpanel
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-secret}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-u", "root", "-p${DB_ROOT_PASSWORD:-secret}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   redis:
     image: redis:alpine
