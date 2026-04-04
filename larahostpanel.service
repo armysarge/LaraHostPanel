@@ -1,0 +1,19 @@
+[Unit]
+Description=LaraHostPanel - Project Management Server
+Documentation=https://github.com/yourusername/LaraHostPanel
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__WORKDIR__
+ExecStart=/usr/bin/bash __WORKDIR__/scripts/start.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=__HOME__"
+
+[Install]
+WantedBy=multi-user.target

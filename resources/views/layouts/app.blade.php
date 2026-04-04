@@ -21,9 +21,7 @@
         >
             {{-- Logo --}}
             <div class="flex h-16 items-center gap-3 border-b border-gray-200 px-4 dark:border-gray-800">
-                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm">
-                    LP
-                </div>
+                <img src="{{ asset('assets/images/icon.png') }}" alt="LaraHostPanel" class="h-9 w-9 shrink-0 rounded-lg object-contain">
                 <span x-show="sidebarOpen" x-transition class="text-lg font-semibold truncate">
                     LaraHostPanel
                 </span>
@@ -32,7 +30,7 @@
             {{-- Navigation --}}
             <nav class="flex-1 overflow-y-auto p-3 space-y-1">
                 @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'dashboard', 'label' => 'Dashboard'])
-                @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'projects', 'label' => 'Projects'])
+                @include('partials.sidebar-item', ['route' => 'projects.index', 'icon' => 'projects', 'label' => 'Projects'])
                 @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'deployments', 'label' => 'Deployments'])
                 @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'credentials', 'label' => 'Credentials'])
                 @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'settings', 'label' => 'Settings'])

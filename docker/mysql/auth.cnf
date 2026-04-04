@@ -1,0 +1,6 @@
+[mysqld]
+# Force caching_sha2_password for all new users, including those created
+# by the Docker entrypoint via MYSQL_USER. This eliminates the sha256_password
+# deprecation warning that appears even when --authentication_policy is set
+# on the command line, because the entrypoint may run before the flag is applied.
+authentication_policy=caching_sha2_password

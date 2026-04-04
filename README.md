@@ -38,15 +38,15 @@ Git-sourced projects are polled on a configurable schedule; when upstream change
 | **Start / Stop Control** | Toggle any project on or off without touching the server |
 | **Live Monitoring** | View status, uptime, resource usage and recent log output per project |
 | **Git Auto-Deploy** | Periodic polling detects upstream commits and re-deploys automatically |
-| **Docker-backed** | Every project runs in an isolated container stack |
 
 ---
 
 ## Requirements
 
-- Docker >= 24
-- Docker Compose v2
+- PHP >= 8.3
+- Composer
 - Git (for Git-sourced projects)
+- A web server or `php artisan serve`
 
 ---
 
@@ -59,36 +59,26 @@ git clone https://github.com/youruser/LaraHostPanel.git
 cd LaraHostPanel
 ```
 
-### 2. Configure environment
+### 2. Install dependencies
+
+```bash
+composer install
+```
+
+### 3. Configure environment
 
 ```bash
 cp .env.example .env
+php artisan key:generate
 ```
 
-Edit `.env` and set at minimum:
+The defaults use SQLite and file-based sessions — no database server required.
 
-```env
-APP_PORT=8000           # Port the panel is served on
-PHPMYADMIN_PORT=8080    # phpMyAdmin (optional)
-
-DB_DATABASE=larahostpanel
-DB_USERNAME=larahostpanel
-DB_PASSWORD=secret
-DB_ROOT_PASSWORD=secret
-```
-
-### 3. Build and start
+### 4. Run migrations and seed
 
 ```bash
-docker compose up -d --build
-```
-
-### 4. Bootstrap Laravel
-
-```bash
-docker exec larahostpanel_app php artisan key:generate
-docker exec larahostpanel_app php artisan migrate --force
-docker exec larahostpanel_app php artisan db:seed
+touch database/database.sqlite
+php artisan migrate --seed
 ```
 
 > **Default login credentials**
@@ -97,25 +87,15 @@ docker exec larahostpanel_app php artisan db:seed
 > | Email | `admin@larahostpanel.local` |
 > | Password | `password` |
 >
-> **Change these immediately after first login.** Update `database/seeders/DatabaseSeeder.php` before seeding, or change your password through the panel after logging in.
+> Change these immediately after first login.
 
-### 5. Open the panel
+### 5. Start the panel
 
+```bash
+php artisan serve --port=8001
 ```
-http://localhost:8000
-```
 
----
-
-## Docker Services
-
-| Service | Container | Default Port |
-|---|---|---|
-| PHP-FPM (app) | `larahostpanel_app` | — |
-| Nginx | `larahostpanel_nginx` | `8000` |
-| MySQL 8 | `larahostpanel_mysql` | `3306` |
-| Redis | `larahostpanel_redis` | `6379` |
-| phpMyAdmin | `larahostpanel_phpmyadmin` | `8080` |
+Then open [http://localhost:8001](http://localhost:8001).
 
 ---
 
@@ -123,10 +103,11 @@ http://localhost:8000
 
 ### Local Path
 
-Point LaraHostPanel at any Laravel project already on the host:
+Point LaraHostPanel at any Laravel project already on the host. Both absolute and tilde paths are supported:
 
 ```
 /home/user/projects/my-laravel-app
+~/Projects/my-laravel-app
 ```
 
 ### Git URL

@@ -20,9 +20,11 @@ class Project extends Model
         'ip_address',
         'port',
         'status',
+        'pid',
         'container_id',
         'auto_deploy',
         'auto_deploy_interval',
+        'auto_start',
         'last_commit_hash',
         'last_deployed_at',
         'git_credential_id',
@@ -33,7 +35,9 @@ class Project extends Model
         return [
             'auto_deploy' => 'boolean',
             'auto_deploy_interval' => 'integer',
+            'auto_start' => 'boolean',
             'port' => 'integer',
+            'pid' => 'integer',
             'last_deployed_at' => 'datetime',
         ];
     }
