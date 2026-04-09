@@ -31,9 +31,9 @@
             <nav class="flex-1 overflow-y-auto p-3 space-y-1">
                 @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'dashboard', 'label' => 'Dashboard'])
                 @include('partials.sidebar-item', ['route' => 'projects.index', 'icon' => 'projects', 'label' => 'Projects'])
-                @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'deployments', 'label' => 'Deployments'])
-                @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'credentials', 'label' => 'Credentials'])
-                @include('partials.sidebar-item', ['route' => 'dashboard', 'icon' => 'settings', 'label' => 'Settings'])
+                @include('partials.sidebar-item', ['route' => 'deployments.index', 'icon' => 'deployments', 'label' => 'Deployments'])
+                @include('partials.sidebar-item', ['route' => 'credentials.index', 'icon' => 'credentials', 'label' => 'Credentials'])
+                @include('partials.sidebar-item', ['route' => 'settings.index', 'icon' => 'settings', 'label' => 'Settings'])
             </nav>
 
             {{-- Collapse toggle --}}

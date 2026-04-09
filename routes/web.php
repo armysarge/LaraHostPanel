@@ -1,8 +1,11 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 // Guest routes
@@ -21,4 +24,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/projects/{project}/stop', [ProjectController::class, 'stop'])->name('projects.stop');
     Route::get('/projects/{project}/env', [ProjectController::class, 'envEdit'])->name('projects.env.edit');
     Route::put('/projects/{project}/env', [ProjectController::class, 'envUpdate'])->name('projects.env.update');
+
+    Route::get('/deployments', [DeploymentController::class, 'index'])->name('deployments.index');
+    Route::get('/deployments/{deployment}', [DeploymentController::class, 'show'])->name('deployments.show');
+
+    Route::resource('credentials', CredentialController::class)->except(['show']);
+
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');
+    Route::put('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
 });
