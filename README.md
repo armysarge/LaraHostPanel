@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>A self-hosted Laravel project manager — deploy, run, monitor and command your Laravel apps from a single panel.</strong>
+  <strong>A basic self-hosted Laravel project manager — deploy, run, monitor and command your Laravel apps from a single panel.</strong>
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@
 
 ## Overview
 
-**LaraHostPanel** is a self-hosted web control panel for managing multiple Laravel (and plain PHP) applications on a single server. Add projects from a local filesystem path or a Git repository, assign each one a bind address and port, bring them up or down on demand, run artisan / shell commands directly from the browser, and watch deployment logs — all from one clean, dark-mode-friendly interface.
+**LaraHostPanel** is a self-hosted basic web control panel for managing multiple Laravel (and plain PHP) applications on a single server. Add projects from a local filesystem path or a Git repository, assign each one a bind address and port, bring them up or down on demand, run artisan / shell commands directly from the browser, and watch deployment logs — all from one clean, dark-mode-friendly interface.
 
 Key design goals:
 
