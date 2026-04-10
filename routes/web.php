@@ -22,6 +22,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('projects', ProjectController::class);
     Route::post('/projects/{project}/start', [ProjectController::class, 'start'])->name('projects.start');
     Route::post('/projects/{project}/stop', [ProjectController::class, 'stop'])->name('projects.stop');
+    Route::post('/projects/{project}/deploy', [ProjectController::class, 'deploy'])->name('projects.deploy');
     Route::get('/projects/{project}/env', [ProjectController::class, 'envEdit'])->name('projects.env.edit');
     Route::put('/projects/{project}/env', [ProjectController::class, 'envUpdate'])->name('projects.env.update');
 
