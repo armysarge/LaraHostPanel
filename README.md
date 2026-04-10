@@ -29,18 +29,14 @@
 
 ## Screenshots
 
-> Screenshots will be added here once the UI stabilises.
-
-| Projects Dashboard | Command Runner |
+| Projects List | Deployments |
 |---|---|
-| *(coming soon)* | *(coming soon)* |
+| ![Projects List](docs/screenshots/projects.webp) | ![Deployments](docs/screenshots/deploy.webp) |
 
-<!-- When ready, replace the table above with something like:
-| Projects Dashboard | Command Runner |
+
+| Projects Edit | Projects Logs|
 |---|---|
-| ![Projects Dashboard](docs/screenshots/projects.png) | ![Command Runner](docs/screenshots/commands.png) |
--->
-
+| ![Projects Edit](docs/screenshots/edit_project2.webp) | ![Projects Logs](docs/screenshots/edit_project.webp) |
 ---
 
 ## Overview
