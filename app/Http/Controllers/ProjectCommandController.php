@@ -52,11 +52,16 @@ class ProjectCommandController extends Controller
         $workDir = $this->resolveWorkDir($project);
 
         if (!$workDir || !is_dir($workDir)) {
-            return redirect()->back()
-                ->with('error', 'Project directory not found. '
-                    . ($project->source_type === 'git'
-                        ? 'Deploy the project first so the working directory exists.'
-                        : 'Check that the local path is correct.'));
+            $msg = 'Project directory not found. '
+                . ($project->source_type === 'git'
+                    ? 'Deploy the project first so the working directory exists.'
+                    : 'Check that the local path is correct.');
+
+            if ($request->ajax()) {
+                return response()->json(['error' => $msg], 422);
+            }
+
+            return redirect()->back()->with('error', $msg);
         }
 
         $runId      = uniqid('cmd_', true);
@@ -86,8 +91,24 @@ class ProjectCommandController extends Controller
             Log::info("[LaraHostPanel] {$project->name} (#{$project->id}): command run #{$commandRun->id} started with PID {$pid}.");
         } else {
             $commandRun->update(['status' => 'failed', 'completed_at' => now(), 'exit_code' => -1]);
+
+            if ($request->ajax()) {
+                return response()->json(['error' => 'Failed to start the command process.'], 500);
+            }
+
             return redirect()->route('projects.commands.index', $project)
                 ->with('error', 'Failed to start the command process.');
+        }
+
+        if ($request->ajax()) {
+            return response()->json([
+                'id'         => $commandRun->id,
+                'command'    => $commandRun->command,
+                'label'      => $commandRun->label,
+                'status'     => $commandRun->status,
+                'pid'        => $commandRun->pid,
+                'started_at' => $commandRun->started_at?->diffForHumans(),
+            ]);
         }
 
         return redirect()->route('projects.commands.index', $project)

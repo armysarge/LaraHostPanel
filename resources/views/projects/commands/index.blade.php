@@ -4,7 +4,7 @@
 @section('heading', 'Command Runner')
 
 @section('content')
-<div x-data="commandRunner({{ session('latest_run_id', 'null') }}, '{{ csrf_token() }}')" class="space-y-6">
+<div x-data="commandRunner('{{ csrf_token() }}')" class="space-y-6">
 
     {{-- Breadcrumb --}}
     <div class="flex items-center gap-1.5 text-sm">
@@ -21,12 +21,16 @@
         <span class="font-medium text-gray-900 dark:text-white">Commands</span>
     </div>
 
-    {{-- Flash alerts --}}
-    @if (session('success'))
-        <x-alert type="success">{{ session('success') }}</x-alert>
-    @endif
+    {{-- Inline error (AJAX) --}}
+    <div x-show="ajaxError" x-cloak
+         class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+         x-text="ajaxError"></div>
+
+    {{-- Flash alerts (server-side fallback) --}}
     @if (session('error'))
-        <x-alert type="error">{{ session('error') }}</x-alert>
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            {{ session('error') }}
+        </div>
     @endif
 
     {{-- Command Input Card --}}
@@ -49,23 +53,28 @@
             </div>
         </div>
 
-        {{-- Command form --}}
-        <form method="POST" action="{{ route('projects.commands.run', $project) }}">
-            @csrf
-            <input type="hidden" name="label" :value="label">
-
+        {{-- Command form — AJAX submit --}}
+        <form @submit.prevent="submitCommand">
             <div class="flex gap-2">
-                <input type="text" name="command"
+                <input type="text"
                        x-model="command"
+                       :disabled="submitting"
                        required
                        placeholder="e.g. php artisan migrate --force"
-                       class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500">
+                       class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm shadow-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500">
                 <button type="submit"
-                        class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        :disabled="submitting"
+                        class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {{-- Spinner (shown while submitting) --}}
+                    <svg x-show="submitting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {{-- Play icon (shown when idle) --}}
+                    <svg x-show="!submitting" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
                     </svg>
-                    Run
+                    <span x-text="submitting ? 'Running…' : 'Run'">Run</span>
                 </button>
             </div>
 
@@ -83,17 +92,89 @@
         </form>
     </div>
 
-    {{-- Runs --}}
+    {{-- AJAX-submitted runs (prepended dynamically, no page reload) --}}
+    <template x-for="run in ajaxRuns" :key="run.id">
+        <div class="overflow-hidden rounded-xl border transition-colors"
+             :class="statusBorderClass(getStatus(run.id))"
+             x-init="initRun(run.id, run.status, run.pid, '')">
+
+            <div class="flex flex-wrap items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60">
+
+                <template x-if="getStatus(run.id) === 'running'">
+                    <svg class="h-4 w-4 shrink-0 animate-spin text-yellow-500" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </template>
+                <template x-if="getStatus(run.id) !== 'running'">
+                    <span class="inline-flex h-2 w-2 shrink-0 rounded-full"
+                          :class="{
+                              'bg-green-500': getStatus(run.id) === 'success',
+                              'bg-red-500':   getStatus(run.id) === 'failed',
+                              'bg-gray-400':  getStatus(run.id) === 'pending',
+                          }"></span>
+                </template>
+
+                <div class="min-w-0 flex-1">
+                    <template x-if="run.label">
+                        <span class="mr-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400" x-text="run.label + ':'"></span>
+                    </template>
+                    <code class="break-all text-sm text-gray-900 dark:text-white" x-text="run.command"></code>
+                </div>
+
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                    <span class="text-xs text-gray-400 dark:text-gray-500" x-text="run.started_at"></span>
+
+                    <span class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                          :class="{
+                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400':     getStatus(run.id) === 'success',
+                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400':             getStatus(run.id) === 'failed',
+                              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': getStatus(run.id) === 'running',
+                              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400':            getStatus(run.id) === 'pending',
+                          }"
+                          x-text="getStatus(run.id)"></span>
+
+                    <button x-show="getStatus(run.id) === 'running'"
+                            x-cloak
+                            @click="stopRun(run.id)"
+                            class="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-2 py-0.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20">
+                        <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+                        Stop
+                    </button>
+
+                    <button @click="toggleOutput(run.id)"
+                            class="inline-flex items-center gap-1 text-xs text-indigo-600 transition-colors hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+                        <span x-text="isOpen(run.id) ? 'Hide' : 'Output'">Output</span>
+                        <svg class="h-3.5 w-3.5 transition-transform" :class="isOpen(run.id) && 'rotate-180'"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="isOpen(run.id)"
+                 x-transition:enter="transition-opacity duration-150"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100">
+                <pre :id="'term-' + run.id"
+                     class="max-h-[28rem] overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-relaxed text-green-400"
+                     style="white-space: pre-wrap; text-wrap: auto; word-break: break-word;"
+                     x-text="getOutput(run.id) ?? '(waiting for output…)'"></pre>
+                <span x-effect="autoScroll(run.id)"></span>
+            </div>
+        </div>
+    </template>
+
+    {{-- Server-rendered historical runs --}}
     @forelse ($runs as $run)
         <div id="run-{{ $run->id }}"
              x-init="initRun({{ $run->id }}, '{{ $run->status }}', {{ $run->pid ?? 'null' }}, @js($run->currentOutput()))"
              class="overflow-hidden rounded-xl border transition-colors"
              :class="statusBorderClass(getStatus({{ $run->id }}))">
 
-            {{-- Run header --}}
             <div class="flex flex-wrap items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60">
 
-                {{-- Spinner while running --}}
                 <template x-if="getStatus({{ $run->id }}) === 'running'">
                     <svg class="h-4 w-4 shrink-0 animate-spin text-yellow-500" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -109,7 +190,6 @@
                           }"></span>
                 </template>
 
-                {{-- Command text --}}
                 <div class="min-w-0 flex-1">
                     @if ($run->label)
                         <span class="mr-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">{{ $run->label }}:</span>
@@ -117,7 +197,6 @@
                     <code class="break-all text-sm text-gray-900 dark:text-white">{{ $run->command }}</code>
                 </div>
 
-                {{-- Meta + actions --}}
                 <div class="flex shrink-0 flex-wrap items-center gap-2">
                     <span class="text-xs text-gray-400 dark:text-gray-500">
                         {{ $run->started_at?->diffForHumans() }}
@@ -129,17 +208,15 @@
                         </span>
                     @endif
 
-                    {{-- Status badge --}}
                     <span class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
                           :class="{
-                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400':    getStatus({{ $run->id }}) === 'success',
-                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400':            getStatus({{ $run->id }}) === 'failed',
+                              'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400':     getStatus({{ $run->id }}) === 'success',
+                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400':             getStatus({{ $run->id }}) === 'failed',
                               'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': getStatus({{ $run->id }}) === 'running',
-                              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400':           getStatus({{ $run->id }}) === 'pending',
+                              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400':            getStatus({{ $run->id }}) === 'pending',
                           }"
                           x-text="getStatus({{ $run->id }})">{{ $run->status }}</span>
 
-                    {{-- Stop button (only for running) --}}
                     <button x-show="getStatus({{ $run->id }}) === 'running'"
                             x-cloak
                             @click="stopRun({{ $run->id }})"
@@ -150,7 +227,6 @@
                         Stop
                     </button>
 
-                    {{-- Toggle output --}}
                     <button @click="toggleOutput({{ $run->id }})"
                             class="inline-flex items-center gap-1 text-xs text-indigo-600 transition-colors hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
                         <span x-text="isOpen({{ $run->id }}) ? 'Hide' : 'Output'">Output</span>
@@ -162,20 +238,20 @@
                 </div>
             </div>
 
-            {{-- Terminal output panel --}}
             <div x-show="isOpen({{ $run->id }})"
                  x-transition:enter="transition-opacity duration-150"
                  x-transition:enter-start="opacity-0"
                  x-transition:enter-end="opacity-100">
-                <pre class="max-h-[28rem] overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-relaxed text-green-400 whitespace-pre-wrap break-words"
-                     x-ref="term{{ $run->id }}"
+                <pre id="term-{{ $run->id }}"
+                     class="max-h-[28rem] overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-relaxed text-green-400"
+                     style="white-space: pre-wrap; text-wrap: auto; word-break: break-word;"
                      x-text="getOutput({{ $run->id }}) ?? '(waiting for output…)'"></pre>
-                {{-- Auto-scroll helper for running runs --}}
-                <span x-effect="if (getStatus({{ $run->id }}) === 'running' && isOpen({{ $run->id }})) { const el = $refs['term{{ $run->id }}']; if (el) el.scrollTop = el.scrollHeight; }"></span>
+                <span x-effect="autoScroll({{ $run->id }})"></span>
             </div>
         </div>
     @empty
-        <div class="rounded-xl border border-dashed border-gray-200 py-14 text-center text-sm text-gray-400 dark:border-gray-800 dark:text-gray-500">
+        <div x-show="ajaxRuns.length === 0"
+             class="rounded-xl border border-dashed border-gray-200 py-14 text-center text-sm text-gray-400 dark:border-gray-800 dark:text-gray-500">
             No commands have been run yet. Use the presets above or type a custom command.
         </div>
     @endforelse
@@ -188,11 +264,14 @@
 </div>
 
 <script>
-function commandRunner(preOpenId, csrfToken) {
+function commandRunner(csrfToken) {
     return {
         command:   '',
         label:     '',
-        openRuns:  preOpenId ? [preOpenId] : [],
+        submitting: false,
+        ajaxError: '',
+        ajaxRuns:  [],
+        openRuns:  [],
         outputs:   {},
         statuses:  {},
         intervals: {},
@@ -200,6 +279,49 @@ function commandRunner(preOpenId, csrfToken) {
         setCommand(cmd, lbl) {
             this.command = cmd;
             this.label   = lbl;
+        },
+
+        async submitCommand() {
+            if (!this.command.trim()) return;
+
+            this.submitting = true;
+            this.ajaxError  = '';
+
+            try {
+                const res = await fetch('{{ route('projects.commands.run', $project) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':     'application/json',
+                        'X-CSRF-TOKEN':     csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        command: this.command,
+                        label:   this.label || null,
+                    }),
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    this.ajaxError = data.error || 'An unexpected error occurred.';
+                    return;
+                }
+
+                // Prepend new run card
+                this.ajaxRuns.unshift(data);
+                this.command = '';
+                this.label   = '';
+
+                // Give Alpine a tick to render the x-for item, then init
+                await this.$nextTick();
+                this.initRun(data.id, data.status, data.pid, '');
+
+            } catch (e) {
+                this.ajaxError = 'Network error — could not reach the server.';
+            } finally {
+                this.submitting = false;
+            }
         },
 
         initRun(id, status, pid, initialOutput) {
@@ -243,11 +365,18 @@ function commandRunner(preOpenId, csrfToken) {
             fetch(`/projects/{{ $project->id }}/commands/${id}/stop`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN':    csrfToken,
-                    'Content-Type':    'application/json',
+                    'X-CSRF-TOKEN':     csrfToken,
+                    'Content-Type':     'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             }).catch(() => {});
+        },
+
+        autoScroll(id) {
+            if (this.getStatus(id) === 'running' && this.isOpen(id)) {
+                const el = document.getElementById('term-' + id);
+                if (el) el.scrollTop = el.scrollHeight;
+            }
         },
 
         getOutput(id) {
