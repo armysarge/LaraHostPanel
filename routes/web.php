@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\ProjectCommandController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/projects/{project}/deploy', [ProjectController::class, 'deploy'])->name('projects.deploy');
     Route::get('/projects/{project}/env', [ProjectController::class, 'envEdit'])->name('projects.env.edit');
     Route::put('/projects/{project}/env', [ProjectController::class, 'envUpdate'])->name('projects.env.update');
+
+    Route::get('/projects/{project}/commands', [ProjectCommandController::class, 'index'])->name('projects.commands.index');
+    Route::post('/projects/{project}/commands', [ProjectCommandController::class, 'run'])->name('projects.commands.run');
+    Route::get('/projects/{project}/commands/{commandRun}/output', [ProjectCommandController::class, 'output'])->name('projects.commands.output');
+    Route::post('/projects/{project}/commands/{commandRun}/stop', [ProjectCommandController::class, 'stop'])->name('projects.commands.stop');
 
     Route::get('/deployments', [DeploymentController::class, 'index'])->name('deployments.index');
     Route::get('/deployments/{deployment}', [DeploymentController::class, 'show'])->name('deployments.show');

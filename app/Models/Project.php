@@ -52,6 +52,11 @@ class Project extends Model
         return $this->hasMany(DeploymentLog::class);
     }
 
+    public function commandRuns(): HasMany
+    {
+        return $this->hasMany(ProjectCommandRun::class);
+    }
+
     public function latestDeployment(): HasMany
     {
         return $this->hasMany(DeploymentLog::class)->latestOfMany();

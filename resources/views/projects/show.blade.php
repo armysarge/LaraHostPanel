@@ -51,6 +51,15 @@
                 </a>
             @endif
 
+            {{-- Commands --}}
+            <a href="{{ route('projects.commands.index', $project) }}"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Commands
+            </a>
+
             @if ($project->source_type === 'git')
                 <form method="POST" action="{{ route('projects.deploy', $project) }}" class="inline">
                     @csrf
