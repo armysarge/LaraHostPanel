@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>A self-hosted Laravel project manager — deploy, run, monitor and command your Laravel apps from a single panel.</strong>
+  <strong>A basic self-hosted Laravel project manager — deploy, run, monitor and command your Laravel apps from a single panel.</strong>
 </p>
 
 <p align="center">
@@ -46,7 +46,6 @@
 Key design goals:
 
 - **Zero external dependencies** — uses SQLite and PHP's built-in server by default; no Docker, no Nginx, no Node daemon required.
-- **Concurrent operations** — deployments and command runs are independent background processes; you can re-deploy a project and run `php artisan migrate` simultaneously without either blocking the other.
 - **Audit trail** — every deployment and command execution is logged with its output and exit code, available for review at any time.
 
 ---
