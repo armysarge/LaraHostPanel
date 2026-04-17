@@ -16,6 +16,14 @@ php artisan migrate --force --no-interaction || true
 echo "Starting auto-start projects..."
 php artisan app:start-auto-projects || true
 
+# Run the Laravel scheduler every minute in the background so auto-deploy
+# polling works without requiring a system cron entry.
+echo "Starting scheduler loop..."
+while true; do
+    php artisan schedule:run --no-interaction >> /dev/null 2>&1
+    sleep 60
+done &
+
 # Start the Laravel development server in the foreground so systemd can track it
 echo "Starting LaraHostPanel on port $PORT..."
 exec php artisan serve --host=0.0.0.0 --port=$PORT --no-interaction

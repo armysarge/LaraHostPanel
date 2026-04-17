@@ -27,6 +27,7 @@ class Project extends Model
         'auto_start',
         'last_commit_hash',
         'last_deployed_at',
+        'last_checked_at',
         'git_credential_id',
     ];
 
@@ -39,6 +40,7 @@ class Project extends Model
             'port' => 'integer',
             'pid' => 'integer',
             'last_deployed_at' => 'datetime',
+            'last_checked_at'  => 'datetime',
         ];
     }
 

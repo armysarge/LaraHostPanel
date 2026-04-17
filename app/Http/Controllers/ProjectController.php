@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\DeployGitProject;
 use App\Models\DeploymentLog;
 use App\Models\GitCredential;
 use App\Models\Project;
@@ -223,147 +224,12 @@ class ProjectController extends Controller
     }
 
     // -------------------------------------------------------------------------
-    // Git deployment helper
+    // Git deployment helper — delegates to App\Actions\DeployGitProject
     // -------------------------------------------------------------------------
 
-    /**
-     * Clone (or pull) a git project and start its PHP server.
-     * Returns true on success, false on failure (side-effects: updates project
-     * status and writes a DeploymentLog record).
-     */
     private function deployGitProject(Project $project): bool
     {
-        $startedAt  = now();
-        $deployPath = storage_path('app/deployments/' . (int) $project->id);
-        $rawBranch  = $project->branch ?? 'main';
-
-        // ---- Build git credentials ------------------------------------------
-        $gitUrl       = $project->git_url;
-        $gitEnvPrefix = '';
-        $sshKeyFile   = null;
-
-        if ($project->gitCredential) {
-            $cred = $project->gitCredential;
-            if ($cred->type === 'token') {
-                // Embed token into the HTTPS URL
-                $gitUrl = preg_replace(
-                    '#^(https?://)#',
-                    '$1x-access-token:' . rawurlencode($cred->credential) . '@',
-                    $gitUrl
-                );
-            } elseif ($cred->type === 'ssh_key') {
-                $sshKeyFile = tempnam(sys_get_temp_dir(), 'lhp_key_');
-                file_put_contents($sshKeyFile, rtrim($cred->credential) . "\n");
-                chmod($sshKeyFile, 0600);
-                $gitEnvPrefix = 'GIT_SSH_COMMAND='
-                    . escapeshellarg('ssh -i ' . $sshKeyFile . ' -o StrictHostKeyChecking=accept-new -o BatchMode=yes')
-                    . ' ';
-            }
-        }
-
-        // ---- Clone or pull --------------------------------------------------
-        $cmdOutput = [];
-        $exitCode  = 0;
-
-        try {
-            if (is_dir($deployPath . '/.git')) {
-                // Pull latest commits on the target branch
-                $cmd = 'cd ' . escapeshellarg($deployPath)
-                    . ' && ' . $gitEnvPrefix . 'git fetch origin 2>&1'
-                    . ' && ' . $gitEnvPrefix . 'git checkout ' . escapeshellarg($rawBranch) . ' 2>&1'
-                    . ' && ' . $gitEnvPrefix . 'git reset --hard ' . escapeshellarg('origin/' . $rawBranch) . ' 2>&1';
-                exec($cmd, $cmdOutput, $exitCode);
-            } else {
-                // Remove any partial/failed clone before starting fresh.
-                // Guard: only delete if the path is inside our expected base directory.
-                $expectedBase = storage_path('app/deployments');
-                if (is_dir($deployPath) && str_starts_with(realpath($deployPath) ?: $deployPath, $expectedBase)) {
-                    exec('rm -rf ' . escapeshellarg($deployPath));
-                }
-                @mkdir($deployPath, 0755, true);
-
-                $cmd = $gitEnvPrefix
-                    . 'git clone --branch ' . escapeshellarg($rawBranch)
-                    . ' -- ' . escapeshellarg($gitUrl)
-                    . ' ' . escapeshellarg($deployPath) . ' 2>&1';
-                exec($cmd, $cmdOutput, $exitCode);
-            }
-        } finally {
-            if ($sshKeyFile && file_exists($sshKeyFile)) {
-                unlink($sshKeyFile);
-            }
-        }
-
-        $gitOutput = implode("\n", $cmdOutput);
-
-        if ($exitCode !== 0) {
-            $project->update(['status' => 'error', 'pid' => null]);
-            Log::error("[LaraHostPanel] {$project->name} (#{$project->id}): git operation failed (exit {$exitCode}).");
-            $project->deploymentLogs()->create([
-                'status'       => 'failed',
-                'output'       => "Git operation failed (exit {$exitCode}):\n{$gitOutput}",
-                'started_at'   => $startedAt,
-                'completed_at' => now(),
-            ]);
-            return false;
-        }
-
-        // ---- Resolve commit hash --------------------------------------------
-        $hashLines = [];
-        exec('cd ' . escapeshellarg($deployPath) . ' && git rev-parse HEAD 2>/dev/null', $hashLines);
-        $commitHash = trim($hashLines[0] ?? '');
-
-        // ---- Start the PHP server -------------------------------------------
-        $ip      = filter_var($project->ip_address, FILTER_VALIDATE_IP) ?: $project->ip_address;
-        $port    = (int) $project->port;
-        $logFile = storage_path('logs/project-' . $project->id . '.log');
-
-        if (file_exists($deployPath . '/artisan')) {
-            $serve = "php artisan serve --host={$ip} --port={$port}";
-        } elseif (is_dir($deployPath . '/public')) {
-            $serve = 'php -S ' . $ip . ':' . $port . ' -t ' . escapeshellarg($deployPath . '/public');
-        } else {
-            $serve = 'php -S ' . $ip . ':' . $port;
-        }
-
-        $startCmd = 'cd ' . escapeshellarg($deployPath)
-            . ' && nohup env -i'
-            . ' HOME=' . escapeshellarg($_SERVER['HOME'] ?? (posix_getpwuid(posix_getuid())['dir'] ?? '/tmp'))
-            . ' PATH=' . escapeshellarg($_SERVER['PATH'] ?? '/usr/local/bin:/usr/bin:/bin')
-            . ' ' . $serve
-            . ' > ' . escapeshellarg($logFile) . ' 2>&1 & echo $!';
-
-        $pid = (int) exec($startCmd);
-
-        if ($pid > 0) {
-            $project->update([
-                'status'           => 'running',
-                'pid'              => $pid,
-                'last_deployed_at' => now(),
-                'last_commit_hash' => $commitHash ?: null,
-            ]);
-            Log::info("[LaraHostPanel] {$project->name} (#{$project->id}) deployed from git, started with PID {$pid}.");
-            $project->deploymentLogs()->create([
-                'status'       => 'success',
-                'commit_hash'  => $commitHash ?: null,
-                'output'       => $gitOutput . "\n\nStarted with PID {$pid}.\nServing: {$serve}",
-                'started_at'   => $startedAt,
-                'completed_at' => now(),
-            ]);
-            return true;
-        }
-
-        // Server failed to start
-        $project->update(['status' => 'error', 'pid' => null]);
-        Log::error("[LaraHostPanel] {$project->name} (#{$project->id}): server process did not start after git deploy.");
-        $project->deploymentLogs()->create([
-            'status'       => 'failed',
-            'commit_hash'  => $commitHash ?: null,
-            'output'       => $gitOutput . "\n\nGit pull succeeded but PHP server failed to start.",
-            'started_at'   => $startedAt,
-            'completed_at' => now(),
-        ]);
-        return false;
+        return (new DeployGitProject)->execute($project);
     }
 
     public function stop(Project $project)
