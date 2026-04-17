@@ -99,7 +99,16 @@ cd LaraHostPanel
 composer install --no-dev --optimize-autoloader
 ```
 
-### 3. Configure environment
+### 3. Install and build frontend assets
+
+```bash
+npm install
+npm run build
+```
+
+This compiles the Vite assets and generates `public/build/manifest.json`, which is required to load the UI.
+
+### 4. Configure environment
 
 ```bash
 cp .env.example .env
@@ -108,7 +117,7 @@ php artisan key:generate
 
 The defaults use a local SQLite database and file-based sessions — no database server needed.
 
-### 4. Run migrations
+### 5. Run migrations
 
 ```bash
 touch database/database.sqlite
@@ -124,7 +133,7 @@ php artisan migrate --seed
 >
 > **Change the password immediately after first login** via *Settings → Password*.
 
-### 5. Start the panel
+### 6. Start the panel
 
 ```bash
 php artisan serve --host=0.0.0.0 --port=8001
@@ -138,7 +147,7 @@ bash scripts/start.sh
 
 Open [http://localhost:8001](http://localhost:8001) in your browser.
 
-### 6. (Optional) Install as a systemd service
+### 7. (Optional) Install as a systemd service
 
 ```bash
 sudo bash scripts/install-service.sh
