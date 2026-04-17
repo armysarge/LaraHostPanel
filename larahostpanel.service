@@ -1,6 +1,6 @@
 [Unit]
 Description=LaraHostPanel - Project Management Server
-Documentation=https://github.com/yourusername/LaraHostPanel
+Documentation=https://github.com/armysarge/LaraHostPanel
 After=network.target
 
 [Service]
