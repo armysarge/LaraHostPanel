@@ -4,7 +4,7 @@
 @section('heading', 'Edit Project')
 
 @section('content')
-<div class="mx-auto max-w-2xl">
+<div class="mx-auto max-w-2xl" x-data="{ deleteOpen: false }">
     <form id="update-form" method="POST" action="{{ route('projects.update', $project) }}"
           x-data="{ sourceType: '{{ old('source_type', $project->source_type) }}' }">
         @csrf
@@ -144,15 +144,11 @@
 
     {{-- Actions --}}
     <div class="mt-6 flex items-center justify-between">
-        <form method="POST" action="{{ route('projects.destroy', $project) }}"
-              onsubmit="return confirm('Permanently delete {{ addslashes($project->name) }}?')">
-            @csrf
-            @method('DELETE')
-            <button type="submit"
-                    class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 dark:border-red-800 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20 transition-colors">
-                Delete Project
-            </button>
-        </form>
+        <button type="button"
+                @click="deleteOpen = true"
+                class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50 dark:border-red-800 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20 transition-colors">
+            Delete Project
+        </button>
         <div class="flex items-center gap-3">
             <a href="{{ route('projects.show', $project) }}"
                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
@@ -164,5 +160,13 @@
             </button>
         </div>
     </div>
+    <x-confirm-modal
+        open="deleteOpen"
+        title="Delete {{ $project->name }}?"
+        description="This will permanently delete the project{{ $project->source_type === 'git' ? ', stop the server, and remove the cloned files' : '' }}. This action cannot be undone."
+        :action="route('projects.destroy', $project)"
+        method="DELETE"
+        confirm-text="Yes, Delete"
+    />
 </div>
 @endsection
