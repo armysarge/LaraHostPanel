@@ -90,7 +90,7 @@ class DeployGitProject
 
         $startCmd = 'cd ' . escapeshellarg($deployPath)
             . ' && nohup env -i'
-            . ' HOME=' . escapeshellarg($_SERVER['HOME'] ?? (posix_getpwuid(posix_getuid())['dir'] ?? '/tmp'))
+            . ' HOME=' . escapeshellarg($_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '/tmp')
             . ' PATH=' . escapeshellarg($_SERVER['PATH'] ?? '/usr/local/bin:/usr/bin:/bin')
             . ' ' . $serve
             . ' > ' . escapeshellarg($logFile) . ' 2>&1 & echo $!';
