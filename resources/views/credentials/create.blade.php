@@ -63,7 +63,7 @@
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     <span x-show="credType === 'token'">Paste your personal access token or deploy token.</span>
                     <span x-show="credType === 'ssh_key'" x-cloak>Paste the full private key including BEGIN/END lines.</span>
-                    This value is stored encrypted at rest.
+                    This value is stored encrypted.
                 </p>
             </div>
 

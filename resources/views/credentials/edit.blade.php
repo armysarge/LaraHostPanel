@@ -61,7 +61,7 @@
                           :placeholder="credType === 'token' ? 'ghp_xxxxxxxxxxxxxxxxxxxx' : '-----BEGIN OPENSSH PRIVATE KEY-----\n...'"
                 >{{ old('credential') }}</textarea>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Leave blank to keep the current value unchanged. This value is stored encrypted at rest.
+                    Leave blank to keep the current value unchanged. This value is stored encrypted.
                 </p>
             </div>
 
