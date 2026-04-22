@@ -55,7 +55,7 @@ class StartAutoProjects extends Command
                 // Resolve the project path
                 $path = $project->local_path ?? $project->git_url;
                 if (str_starts_with($path, '~')) {
-                    $homeDir = posix_getpwuid(posix_getuid())['dir'];
+                    $homeDir = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '/tmp';
                     $path = str_replace('~', $homeDir, $path);
                 }
 
@@ -67,7 +67,7 @@ class StartAutoProjects extends Command
                 }
 
                 // Spawn the project process
-                $homeDir = posix_getpwuid(posix_getuid())['dir'];
+                $homeDir = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '/tmp';
                 $command = "cd '{$path}' && env -i HOME='{$homeDir}' PATH='{$_SERVER['PATH']}' nohup php artisan serve --host={$project->ip_address} --port={$project->port} > /dev/null 2>&1 & echo $!";
 
                 $output = [];
