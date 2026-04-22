@@ -25,6 +25,11 @@ class DeployGitProject
 
         try {
             if (is_dir($deployPath . '/.git')) {
+                // Update the remote URL so a rotated token takes effect immediately
+                $setUrlCmd = 'cd ' . escapeshellarg($deployPath)
+                    . ' && git remote set-url origin ' . escapeshellarg($gitUrl) . ' 2>&1';
+                exec($setUrlCmd);
+
                 // Pull latest commits on the target branch
                 $cmd = 'cd ' . escapeshellarg($deployPath)
                     . ' && ' . $gitEnvPrefix . 'git fetch origin 2>&1'
@@ -134,10 +139,13 @@ class DeployGitProject
             return true; // not cloned yet — treat as needing deployment
         }
 
-        ['gitEnvPrefix' => $gitEnvPrefix, 'sshKeyFile' => $sshKeyFile] =
+        ['gitUrl' => $gitUrl, 'gitEnvPrefix' => $gitEnvPrefix, 'sshKeyFile' => $sshKeyFile] =
             $this->buildCredentials($project);
 
         try {
+            // Update remote URL so a rotated token is picked up immediately
+            exec('cd ' . escapeshellarg($deployPath) . ' && git remote set-url origin ' . escapeshellarg($gitUrl) . ' 2>&1');
+
             $fetchOutput = [];
             $exitCode    = 0;
             exec(
