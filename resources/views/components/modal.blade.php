@@ -1,7 +1,7 @@
 @props([
-    'open'       => 'open',
-    'closeExpr'  => null,
-    'maxWidth'   => 'lg',
+    'open'      => 'open',
+    'closeExpr' => null,
+    'width'     => '800',
 ])
 
 @php
@@ -27,13 +27,8 @@ $closeAction = $closeExpr ?? ($open . ' = false');
          @click="{{ $closeAction }}"></div>
 
     {{-- Panel --}}
-    <div class="relative w-full my-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900
-                @if($maxWidth === 'sm')  max-w-sm
-                @elseif($maxWidth === 'md')  max-w-md
-                @elseif($maxWidth === 'xl')  max-w-xl
-                @elseif($maxWidth === '2xl') max-w-2xl
-                @else                        max-w-lg
-                @endif"
+    <div class="relative my-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+         style="width: {{ $width }}px; max-width: 100%;"
          @click.stop>
         {{ $slot }}
     </div>

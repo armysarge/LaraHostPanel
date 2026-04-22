@@ -9,7 +9,7 @@
     'cancelText'   => 'Cancel',
 ])
 
-<x-modal :open="$open" max-width="sm">
+<x-modal :open="$open" width="400">
     <div class="p-6">
         {{-- Icon + text --}}
         <div class="flex items-start gap-4">
