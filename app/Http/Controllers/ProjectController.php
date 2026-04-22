@@ -52,7 +52,8 @@ class ProjectController extends Controller
         $project = Project::create($validated);
 
         return redirect()->route('projects.show', $project)
-            ->with('success', 'Project created successfully.');
+            ->with('success', 'Project created successfully.')
+            ->with('first_deploy', true);
     }
 
     public function show(Project $project)
@@ -98,17 +99,17 @@ class ProjectController extends Controller
             ->with('success', 'Project updated successfully.');
     }
 
-    public function start(Project $project)
+    public function start(Request $request, Project $project)
     {
         if ($project->isRunning()) {
-            return redirect()->back()->with('success', "\"$project->name\" is already running.");
+            return $this->jsonOrRedirect($request, true, "\"$project->name\" is already running.");
         }
 
         if ($project->source_type === 'local' && $project->local_path) {
             // Expand ~ to the real home directory.
             $path = rtrim($project->local_path, '/');
             if (str_starts_with($path, '~/')) {
-                $home = rtrim(posix_getpwuid(posix_getuid())['dir'] ?? ($_SERVER['HOME'] ?? ''), '/');
+                $home = rtrim($_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '', '/');
                 $path = $home . substr($path, 1);
             }
 
@@ -122,7 +123,7 @@ class ProjectController extends Controller
                     'started_at' => now(),
                     'completed_at' => now(),
                 ]);
-                return redirect()->back()->with('error', $message);
+                return $this->jsonOrRedirect($request, false, $message);
             }
 
             $ip   = filter_var($project->ip_address, FILTER_VALIDATE_IP);
@@ -138,7 +139,7 @@ class ProjectController extends Controller
                     'started_at'   => now(),
                     'completed_at' => now(),
                 ]);
-                return redirect()->back()->with('error', $message);
+                return $this->jsonOrRedirect($request, false, $message);
             }
 
             $logFile = storage_path('logs/project-' . $project->id . '.log');
@@ -157,7 +158,7 @@ class ProjectController extends Controller
                 // inherit LaraHostPanel's DB_CONNECTION, APP_KEY, etc., which would
                 // prevent the project's own .env from loading correctly.
                 . ' && nohup env -i'
-                . ' HOME=' . escapeshellarg($_SERVER['HOME'] ?? posix_getpwuid(posix_getuid())['dir'])
+                . ' HOME=' . escapeshellarg($_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '/tmp')
                 . ' PATH=' . escapeshellarg($_SERVER['PATH'] ?? '/usr/local/bin:/usr/bin:/bin')
                 . ' ' . $serve
                 . ' > ' . escapeshellarg($logFile) . ' 2>&1 & echo $!';
@@ -186,23 +187,23 @@ class ProjectController extends Controller
                     'started_at'   => $startedAt,
                     'completed_at' => now(),
                 ]);
-                return redirect()->back()->with('error', $message);
+                return $this->jsonOrRedirect($request, false, $message);
             }
         } else {
             // Git-sourced projects — clone / pull then start the server
             $deployed = $this->deployGitProject($project);
             if (!$deployed) {
-                return redirect()->back()->with('error', "Failed to deploy \"{$project->name}\". Check deployment logs for details.");
+                return $this->jsonOrRedirect($request, false, "Failed to deploy \"{$project->name}\". Check deployment logs for details.");
             }
         }
 
-        return redirect()->back()->with('success', "\"$project->name\" started.");
+        return $this->jsonOrRedirect($request, true, "\"$project->name\" started.");
     }
 
-    public function deploy(Project $project)
+    public function deploy(Request $request, Project $project)
     {
         if ($project->source_type !== 'git') {
-            return redirect()->back()->with('error', 'Manual re-deploy is only available for git-sourced projects.');
+            return $this->jsonOrRedirect($request, false, 'Manual re-deploy is only available for git-sourced projects.');
         }
 
         // Kill any running process first
@@ -217,10 +218,10 @@ class ProjectController extends Controller
         $deployed = $this->deployGitProject($project);
 
         if (!$deployed) {
-            return redirect()->back()->with('error', "Re-deploy of \"{$project->name}\" failed. Check deployment logs for details.");
+            return $this->jsonOrRedirect($request, false, "Re-deploy of \"{$project->name}\" failed. Check deployment logs for details.");
         }
 
-        return redirect()->back()->with('success', "\"$project->name\" re-deployed successfully.");
+        return $this->jsonOrRedirect($request, true, "\"$project->name\" re-deployed successfully.");
     }
 
     // -------------------------------------------------------------------------
@@ -230,6 +231,17 @@ class ProjectController extends Controller
     private function deployGitProject(Project $project): bool
     {
         return (new DeployGitProject)->execute($project);
+    }
+
+    private function jsonOrRedirect(Request $request, bool $success, string $message): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+    {
+        if ($request->expectsJson()) {
+            return response()->json(
+                ['success' => $success, 'message' => $message],
+                $success ? 200 : 422
+            );
+        }
+        return redirect()->back()->with($success ? 'success' : 'error', $message);
     }
 
     public function stop(Project $project)
@@ -252,10 +264,28 @@ class ProjectController extends Controller
 
     public function destroy(Project $project)
     {
+        // Stop the running process first
+        if ($project->pid) {
+            $pid = (int) $project->pid;
+            exec("kill -TERM {$pid} 2>/dev/null");
+            exec("pkill -TERM -P {$pid} 2>/dev/null");
+        }
+
+        // For git-sourced projects, remove the cloned deployment folder
+        if ($project->source_type === 'git') {
+            $deployPath   = storage_path('app/deployments/' . (int) $project->id);
+            $expectedBase = storage_path('app/deployments');
+            $realPath     = realpath($deployPath) ?: $deployPath;
+
+            if (is_dir($deployPath) && str_starts_with($realPath, $expectedBase)) {
+                exec('rm -rf ' . escapeshellarg($deployPath));
+            }
+        }
+
         $project->delete();
 
         return redirect()->route('projects.index')
-            ->with('success', 'Project deleted.');
+            ->with('success', "Project \"{$project->name}\" deleted.");
     }
 
     // -------------------------------------------------------------------------
