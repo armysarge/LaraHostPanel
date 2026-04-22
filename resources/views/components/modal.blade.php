@@ -22,7 +22,8 @@ $closeAction = $closeExpr ?? ($open . ' = false');
     x-transition:leave-end="opacity-0"
 >
     {{-- Backdrop --}}
-    <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm"
+    <div class="fixed inset-0"
+         style="background-color: rgba(0,0,0,0.75); backdrop-filter: blur(4px); z-index: -1;"
          aria-hidden="true"
          @click="{{ $closeAction }}"></div>
 
