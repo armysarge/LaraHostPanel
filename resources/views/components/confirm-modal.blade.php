@@ -1,11 +1,12 @@
 @props([
-    'open'        => 'open',
-    'title'       => 'Are you sure?',
-    'description' => 'This action cannot be undone.',
-    'action'      => '',
-    'method'      => 'DELETE',
-    'confirmText' => 'Delete',
-    'cancelText'  => 'Cancel',
+    'open'         => 'open',
+    'title'        => 'Are you sure?',
+    'description'  => 'This action cannot be undone.',
+    'action'       => '',
+    'alpineAction' => null,
+    'method'       => 'DELETE',
+    'confirmText'  => 'Delete',
+    'cancelText'   => 'Cancel',
 ])
 
 <x-modal :open="$open" max-width="sm">
@@ -30,7 +31,7 @@
                     class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                 {{ $cancelText }}
             </button>
-            <form method="POST" action="{{ $action }}">
+            <form method="POST" @if($alpineAction) :action="{{ $alpineAction }}" @else action="{{ $action }}" @endif>
                 @csrf
                 @if (strtoupper($method) !== 'POST')
                     @method($method)
