@@ -65,6 +65,26 @@ class ProjectController extends Controller
         return view('projects.show', compact('project'));
     }
 
+    public function logsJson(Project $project): \Illuminate\Http\JsonResponse
+    {
+        $logs = $project->deploymentLogs()
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->map(fn($log) => [
+                'id'          => $log->id,
+                'status'      => $log->status,
+                'commit_hash' => $log->commit_hash ? substr($log->commit_hash, 0, 8) : null,
+                'duration'    => ($log->started_at && $log->completed_at)
+                                  ? $log->started_at->diffInSeconds($log->completed_at)
+                                  : null,
+                'when'        => $log->created_at->diffForHumans(),
+                'output'      => $log->output,
+            ]);
+
+        return response()->json(['logs' => $logs]);
+    }
+
     public function edit(Project $project)
     {
         $credentials = GitCredential::orderBy('name')->get();
@@ -244,10 +264,10 @@ class ProjectController extends Controller
         return redirect()->back()->with($success ? 'success' : 'error', $message);
     }
 
-    public function stop(Project $project)
+    public function stop(Request $request, Project $project)
     {
         if (!$project->isRunning()) {
-            return redirect()->back()->with('success', "\"$project->name\" is already stopped.");
+            return $this->jsonOrRedirect($request, true, "\"$project->name\" is already stopped.");
         }
 
         if ($project->pid) {
@@ -259,7 +279,7 @@ class ProjectController extends Controller
 
         $project->update(['status' => 'stopped', 'pid' => null]);
 
-        return redirect()->back()->with('success', "\"{$project->name}\" stopped.");
+        return $this->jsonOrRedirect($request, true, "\"$project->name\" stopped.");
     }
 
     public function destroy(Project $project)
