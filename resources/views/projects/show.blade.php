@@ -272,7 +272,7 @@
             </div>
 
             {{-- Body: setup phase --}}
-            <div x-show="phase === 'setup'" class="max-h-[60vh] overflow-y-auto px-6 py-5 space-y-5">
+            <div x-show="phase === 'setup'" class="max-h-[60vh] overflow-y-auto p-6 py-5 space-y-5">
                 <template x-for="(group, name) in groups" :key="name">
                     <div>
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500" x-text="name"></p>
@@ -293,7 +293,7 @@
             </div>
 
             {{-- Body: running phase --}}
-            <div x-show="phase === 'running'" class="px-6 py-5 space-y-4">
+            <div x-show="phase === 'running'" class="p-6 py-5 space-y-4">
                 <div class="flex items-center gap-3">
                     <svg class="h-5 w-5 shrink-0 animate-spin text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
