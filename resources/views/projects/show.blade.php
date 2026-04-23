@@ -4,7 +4,7 @@
 @section('heading', $project->name)
 
 @section('content')
-<div class="space-y-6" x-data="deployModal()">
+<div class="space-y-6" x-data="{}">
 
     @if (session('success'))
         <x-alert type="success">{{ session('success') }}</x-alert>
@@ -36,7 +36,7 @@
                     </button>
                 </form>
             @elseif (!$project->last_deployed_at)
-                <button type="button" @click="openModal()" title="Deploy &amp; start {{ $project->name }}"
+                <button type="button" @click="window.dispatchEvent(new CustomEvent('open-deploy', {detail: { id: {{ $project->id }}, name: @js($project->name), branch: @js($project->branch ?? 'main'), isGit: {{ $project->source_type === 'git' ? 'true' : 'false' }}, startUrl: @js(route('projects.start', $project)), commandRunUrl: @js(route('projects.commands.run', $project)) }}))" title="Deploy &amp; start {{ $project->name }}"
                         class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-300 dark:bg-gray-600 transition-colors duration-200 ease-in-out hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900">
                     <span class="sr-only">Deploy {{ $project->name }}</span>
                     <span class="pointer-events-none inline-block h-5 w-5 translate-x-0 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
@@ -82,16 +82,13 @@
             </a>
 
             @if ($project->source_type === 'git')
-                <form method="POST" action="{{ route('projects.deploy', $project) }}" class="inline">
-                    @csrf
-                    <button type="submit"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 shadow-sm hover:bg-indigo-50 dark:border-indigo-700 dark:bg-gray-800 dark:text-indigo-400 dark:hover:bg-gray-700 transition-colors">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Re-deploy
-                    </button>
-                </form>
+                <button type="button" @click="window.dispatchEvent(new CustomEvent('open-deploy', {detail: { id: {{ $project->id }}, name: @js($project->name), branch: @js($project->branch ?? 'main'), isGit: true, startUrl: @js(route('projects.start', $project)), commandRunUrl: @js(route('projects.commands.run', $project)) }}))"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 shadow-sm hover:bg-indigo-50 dark:border-indigo-700 dark:bg-gray-800 dark:text-indigo-400 dark:hover:bg-gray-700 transition-colors">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Re-deploy
+                </button>
             @endif
         </div>
     </div>
@@ -185,378 +182,112 @@
         </div>
 
         {{-- Deployment logs --}}
-        <div class="lg:col-span-2" x-data="{ open: [] }">
-            <x-table heading="Deployment Logs" :empty="$project->deploymentLogs->isEmpty()">
+        @php
+        $initialLogs = $project->deploymentLogs->map(fn($log) => [
+            'id'          => $log->id,
+            'status'      => $log->status,
+            'commit_hash' => $log->commit_hash ? substr($log->commit_hash, 0, 8) : null,
+            'duration'    => ($log->started_at && $log->completed_at)
+                              ? $log->started_at->diffInSeconds($log->completed_at) : null,
+            'when'        => $log->created_at->diffForHumans(),
+            'output'      => $log->output,
+        ])->values()->toArray();
+        @endphp
+        <div class="lg:col-span-2"
+             x-data="{
+                 open: [],
+                 logs: @js($initialLogs),
+                 async loadLogs() {
+                     const res = await fetch(@js(route('projects.logs', $project)), {
+                         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                     });
+                     if (res.ok) { const d = await res.json(); this.logs = d.logs; this.open = []; }
+                 }
+             }"
+             @deploy-done.window="loadLogs()">
+            <div class="w-full rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 overflow-hidden">
+                <div class="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Deployment Logs</h2>
+                </div>
 
-                <x-slot:head>
-                    <x-table.th class="px-5">Status</x-table.th>
-                    <x-table.th class="px-5">Commit</x-table.th>
-                    <x-table.th class="px-5">Duration</x-table.th>
-                    <x-table.th class="px-5">When</x-table.th>
-                    <x-table.th class="px-5 text-right"><span class="sr-only">Output</span></x-table.th>
-                </x-slot:head>
+                <div x-show="logs.length === 0" class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No deployments yet.</div>
 
-                @if ($project->deploymentLogs->isEmpty())
-                    <x-table.empty>No deployments yet.</x-table.empty>
-                @else
-                    @foreach ($project->deploymentLogs as $log)
-                        @php $i = $loop->index; @endphp
-                        <tr class="align-middle hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
-                            <td class="px-5 py-3">
-                                @if ($log->status === 'success')
-                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Success</span>
-                                @elseif ($log->status === 'failed')
-                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">Failed</span>
-                                @elseif ($log->status === 'running')
-                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Running</span>
-                                @else
-                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">{{ ucfirst($log->status) }}</span>
-                                @endif
-                            </td>
-                            <td class="px-5 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">
-                                {{ $log->commit_hash ? substr($log->commit_hash, 0, 8) : '—' }}
-                            </td>
-                            <td class="px-5 py-3 text-xs text-gray-500 dark:text-gray-400">
-                                @if ($log->started_at && $log->completed_at)
-                                    {{ $log->started_at->diffInSeconds($log->completed_at) }}s
-                                @else
-                                    —
-                                @endif
-                            </td>
-                            <td class="px-5 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                {{ $log->created_at->diffForHumans() }}
-                            </td>
-                            <td class="px-5 py-3 text-right">
-                                @if ($log->output)
-                                    <button @click="open.includes({{ $i }}) ? open.splice(open.indexOf({{ $i }}), 1) : open.push({{ $i }})"
-                                            class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors">
-                                        <span x-text="open.includes({{ $i }}) ? 'Hide' : 'Logs'">Logs</span>
-                                        <svg class="h-3.5 w-3.5 transition-transform" :class="open.includes({{ $i }}) && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </button>
-                                @endif
-                            </td>
-                        </tr>
-                        @if ($log->output)
-                            <tr x-show="open.includes({{ $i }})" x-cloak>
-                                <td colspan="5" class="px-5 pb-4 pt-0 bg-gray-950">
-                                    <pre class="overflow-x-auto rounded-lg bg-gray-950 p-4 font-mono text-xs leading-relaxed text-gray-100">{{ $log->output }}</pre>
-                                </td>
+                <div x-show="logs.length > 0" class="overflow-x-auto">
+                    <table class="w-full divide-y divide-gray-200 dark:divide-gray-800">
+                        <thead class="bg-gray-50 dark:bg-gray-800/50">
+                            <tr>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Status</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Commit</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">Duration</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">When</th>
+                                <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap"><span class="sr-only">Output</span></th>
                             </tr>
-                        @endif
-                    @endforeach
-                @endif
-
-            </x-table>
+                        </thead>
+                        <template x-for="log in logs" :key="log.id">
+                            <tbody class="border-t border-gray-100 dark:border-gray-800">
+                                <tr class="align-middle hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+                                    <td class="px-5 py-3">
+                                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+                                              :class="{
+                                                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300': log.status === 'success',
+                                                  'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300': log.status === 'failed',
+                                                  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300': log.status === 'running',
+                                                  'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400': !['success','failed','running'].includes(log.status),
+                                              }"
+                                              x-text="log.status.charAt(0).toUpperCase() + log.status.slice(1)">
+                                        </span>
+                                    </td>
+                                    <td class="px-5 py-3 font-mono text-xs text-gray-500 dark:text-gray-400" x-text="log.commit_hash ?? '—'"></td>
+                                    <td class="px-5 py-3 text-xs text-gray-500 dark:text-gray-400" x-text="log.duration !== null ? log.duration + 's' : '—'"></td>
+                                    <td class="px-5 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap" x-text="log.when"></td>
+                                    <td class="px-5 py-3 text-right">
+                                        <template x-if="log.output">
+                                            <button @click="open.includes(log.id) ? open.splice(open.indexOf(log.id), 1) : open.push(log.id)"
+                                                    class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors">
+                                                <span x-text="open.includes(log.id) ? 'Hide' : 'Logs'"></span>
+                                                <svg class="h-3.5 w-3.5 transition-transform" :class="open.includes(log.id) && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                        </template>
+                                    </td>
+                                </tr>
+                                <tr x-show="log.output && open.includes(log.id)" x-cloak>
+                                    <td colspan="5" class="px-5 pb-4 pt-0 bg-gray-950">
+                                        <pre class="overflow-x-auto rounded-lg bg-gray-950 p-4 font-mono text-xs leading-relaxed text-gray-100" x-text="log.output"></pre>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </template>
+                    </table>
+                </div>
+            </div>
         </div>
 
     </div>
 
     {{-- ================================================================ --}}
-    {{-- Deploy & Setup Modal                                              --}}
+    {{-- Deploy Modal (component)                                          --}}
     {{-- ================================================================ --}}
-    <x-modal open="open" close-expr="phase === 'setup' && (open = false)">
+    <x-deploy-modal />
 
-            {{-- Header --}}
-            <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/50">
-                    <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                </div>
-                <div class="min-w-0">
-                    <h2 class="truncate text-base font-semibold text-gray-900 dark:text-white">Deploy {{ $project->name }}</h2>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                        @if ($project->source_type === 'git')
-                            Choose setup steps to run after git pull
-                        @else
-                            Choose setup steps to run after deployment
-                        @endif
-                    </p>
-                </div>
-            </div>
-
-            {{-- Body: setup phase --}}
-            <div x-show="phase === 'setup'" class="max-h-[60vh] overflow-y-auto p-6 py-5 space-y-5">
-                <template x-for="(group, name) in groups" :key="name">
-                    <div>
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500" x-text="name"></p>
-                        <div class="grid grid-cols-2 gap-2">
-                            <template x-for="preset in group" :key="preset.label">
-                                <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors"
-                                       :class="preset.checked
-                                           ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-900/30'
-                                           : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'">
-                                    <input type="checkbox" x-model="preset.checked"
-                                           class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm text-gray-700 dark:text-gray-300" x-text="preset.label"></span>
-                                </label>
-                            </template>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            {{-- Body: running phase --}}
-            <div x-show="phase === 'running'" class="p-6 py-5 space-y-4">
-                <div class="flex items-center gap-3">
-                    <svg class="h-5 w-5 shrink-0 animate-spin text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300" x-text="currentStep"></span>
-                </div>
-                <div class="space-y-2">
-                    <template x-for="step in steps" :key="step.label">
-                        <div class="flex items-center gap-2.5 text-sm">
-                            <template x-if="step.status === 'done'">
-                                <svg class="h-4 w-4 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </template>
-                            <template x-if="step.status === 'running'">
-                                <svg class="h-4 w-4 shrink-0 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            </template>
-                            <template x-if="step.status === 'pending'">
-                                <svg class="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <circle cx="12" cy="12" r="9" />
-                                </svg>
-                            </template>
-                            <template x-if="step.status === 'failed'">
-                                <svg class="h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </template>
-                            <span x-text="step.label"
-                                  :class="step.status === 'pending' ? 'text-gray-400 dark:text-gray-600' : 'text-gray-700 dark:text-gray-300'"></span>
-                        </div>
-                    </template>
-                </div>
-                <div x-show="logOutput" class="max-h-44 overflow-y-auto rounded-lg bg-gray-950 p-3">
-                    <pre class="whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-100" x-text="logOutput"></pre>
-                </div>
-            </div>
-
-            {{-- Body: done phase --}}
-            <div x-show="phase === 'done'" class="px-6 py-10 text-center">
-                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
-                    <svg class="h-7 w-7 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                </div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">Deployment complete!</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $project->name }} is now running.</p>
-            </div>
-
-            {{-- Body: error phase --}}
-            <div x-show="phase === 'error'" class="px-6 py-10 text-center">
-                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
-                    <svg class="h-7 w-7 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                    </svg>
-                </div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">Deployment failed</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400" x-text="errorMsg"></p>
-            </div>
-
-            {{-- Footer --}}
-            <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
-                <template x-if="phase === 'setup'">
-                    <div class="flex w-full items-center justify-end gap-3">
-                        <button type="button" @click="open = false"
-                                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
-                            Skip for now
-                        </button>
-                        <button type="button" @click="go()"
-                                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700">
-                            Deploy Now
-                        </button>
-                    </div>
-                </template>
-                <template x-if="phase === 'done' || phase === 'error'">
-                    <button type="button" @click="open = false; window.location.reload()"
-                            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700">
-                        Done
-                    </button>
-                </template>
-            </div>
-    </x-modal>
+@if (session('first_deploy') || request()->query('open'))
+    <script>
+    document.addEventListener('alpine:initialized', function () {
+        window.dispatchEvent(new CustomEvent('open-deploy', {
+            detail: {
+                id: {{ $project->id }},
+                name: @js($project->name),
+                branch: @js($project->branch ?? 'main'),
+                isGit: {{ $project->source_type === 'git' ? 'true' : 'false' }},
+                startUrl: @js(route('projects.start', $project)),
+                commandRunUrl: @js(route('projects.commands.run', $project)),
+            }
+        }));
+    });
+    </script>
+@endif
 
 </div>
 
-<script>
-function deployModal() {
-    return {
-        open: {{ session('first_deploy') ? 'true' : 'false' }},
-        isGit: {{ $project->source_type === 'git' ? 'true' : 'false' }},
-        branch: '{{ $project->branch ?? '' }}',
-        phase: 'setup',
-        currentStep: '',
-        steps: [],
-        logOutput: '',
-        errorMsg: '',
-        presets: [
-            { group: 'Setup', label: 'Composer Install', command: 'composer install --no-interaction --prefer-dist --optimize-autoloader', checked: false },
-            { group: 'Setup', label: 'Migrate',          command: 'php artisan migrate --force',   checked: false },
-            { group: 'Setup', label: 'DB Seed',          command: 'php artisan db:seed --force',   checked: false },
-            { group: 'Setup', label: 'Storage Link',     command: 'php artisan storage:link',      checked: false },
-            { group: 'Cache', label: 'Config Cache',     command: 'php artisan config:cache',      checked: false },
-            { group: 'Cache', label: 'Route Cache',      command: 'php artisan route:cache',       checked: false },
-            { group: 'Cache', label: 'View Clear',       command: 'php artisan view:clear',        checked: false },
-            { group: 'Cache', label: 'Optimize',         command: 'php artisan optimize',          checked: false },
-            { group: 'Build', label: 'NPM Install',      command: 'npm ci',                        checked: false },
-            { group: 'Build', label: 'NPM Build',        command: 'npm run build',                 checked: false },
-        ],
-        get groups() {
-            const g = {};
-            this.presets.forEach(p => { if (!g[p.group]) g[p.group] = []; g[p.group].push(p); });
-            return g;
-        },
-        openModal() {
-            this.phase   = 'setup';
-            this.steps   = [];
-            this.logOutput = '';
-            this.errorMsg  = '';
-            this.open    = true;
-        },
-        async go() {
-            this.phase = 'running';
-            const csrf     = document.querySelector('meta[name="csrf-token"]').content;
-            const selected = this.presets.filter(p => p.checked);
-
-            const deploySteps = this.isGit
-                ? [
-                    { label: 'Connecting to repository', status: 'pending' },
-                    { label: 'Git pull' + (this.branch ? ' (' + this.branch + ')' : ''), status: 'pending' },
-                    { label: 'Starting container', status: 'pending' },
-                  ]
-                : [
-                    { label: 'Starting project', status: 'pending' },
-                  ];
-            deploySteps[0].status = 'running';
-
-            this.steps = [
-                ...deploySteps,
-                ...selected.map(p => ({ label: p.label, status: 'pending' })),
-            ];
-
-            // 1. Start / deploy the project
-            this.currentStep = deploySteps[0].label + '\u2026';
-            try {
-                // Animate through git sub-steps if applicable, then call the deploy endpoint
-                if (this.isGit) {
-                    // Show each git sub-step label in sequence while the single API call runs
-                    const advanceGitStep = (idx) => {
-                        if (idx < deploySteps.length) {
-                            deploySteps[idx].status = 'running';
-                            this.currentStep = deploySteps[idx].label + '\u2026';
-                        }
-                    };
-                    // Stagger the git step labels so they feel meaningful
-                    const t1 = setTimeout(() => { deploySteps[0].status = 'done'; advanceGitStep(1); }, 800);
-                    const t2 = setTimeout(() => { deploySteps[1].status = 'done'; advanceGitStep(2); }, 1800);
-                    const res = await fetch('{{ route("projects.start", $project) }}', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    });
-                    clearTimeout(t1); clearTimeout(t2);
-                    if (!res.ok) {
-                        const data = await res.json().catch(() => ({}));
-                        const failIdx = deploySteps.findIndex(s => s.status === 'running');
-                        if (failIdx !== -1) deploySteps[failIdx].status = 'failed';
-                        this.phase    = 'error';
-                        this.errorMsg = data.message || 'Failed to deploy the project. Check deployment logs.';
-                        return;
-                    }
-                    deploySteps.forEach(s => { s.status = 'done'; });
-                    this.currentStep = 'Git pull complete';
-                } else {
-                    const res = await fetch('{{ route("projects.start", $project) }}', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    });
-                    if (!res.ok) {
-                        const data = await res.json().catch(() => ({}));
-                        this.steps[0].status = 'failed';
-                        this.phase    = 'error';
-                        this.errorMsg = data.message || 'Failed to start the project. Check deployment logs.';
-                        return;
-                    }
-                    this.steps[0].status = 'done';
-                }
-            } catch {
-                const failIdx = this.steps.findIndex(s => s.status === 'running');
-                if (failIdx !== -1) this.steps[failIdx].status = 'failed';
-                this.phase    = 'error';
-                this.errorMsg = 'Network error while starting the project.';
-                return;
-            }
-
-            // 2. Run selected commands sequentially
-            const deployStepCount = deploySteps.length;
-            for (let i = 0; i < selected.length; i++) {
-                const preset  = selected[i];
-                const stepIdx = i + deployStepCount;
-                this.steps[stepIdx].status = 'running';
-                this.currentStep = preset.label + '\u2026';
-                this.logOutput   = '';
-
-                let run;
-                try {
-                    const runRes = await fetch('{{ route("projects.commands.run", $project) }}', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': csrf,
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        body: JSON.stringify({ command: preset.command, label: preset.label }),
-                    });
-                    if (!runRes.ok) { this.steps[stepIdx].status = 'failed'; continue; }
-                    run = await runRes.json();
-                } catch {
-                    this.steps[stepIdx].status = 'failed';
-                    continue;
-                }
-
-                // Poll until the command finishes
-                let polling = true;
-                while (polling) {
-                    await new Promise(r => setTimeout(r, 1500));
-                    try {
-                        const outRes = await fetch(`/projects/{{ $project->id }}/commands/${run.id}/output`, {
-                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                        });
-                        const data = await outRes.json();
-                        this.logOutput = data.output;
-                        if (data.done) {
-                            this.steps[stepIdx].status = data.status === 'success' ? 'done' : 'failed';
-                            polling = false;
-                        }
-                    } catch {
-                        this.steps[stepIdx].status = 'failed';
-                        polling = false;
-                    }
-                }
-            }
-
-            this.phase       = 'done';
-            this.currentStep = 'All done!';
-        },
-    };
-}
-</script>
 @endsection
