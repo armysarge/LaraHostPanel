@@ -267,7 +267,13 @@
                 </div>
                 <div class="min-w-0">
                     <h2 class="truncate text-base font-semibold text-gray-900 dark:text-white">Deploy {{ $project->name }}</h2>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Choose setup steps to run after deployment</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        @if ($project->source_type === 'git')
+                            Choose setup steps to run after git pull
+                        @else
+                            Choose setup steps to run after deployment
+                        @endif
+                    </p>
                 </div>
             </div>
 
@@ -386,6 +392,8 @@
 function deployModal() {
     return {
         open: {{ session('first_deploy') ? 'true' : 'false' }},
+        isGit: {{ $project->source_type === 'git' ? 'true' : 'false' }},
+        branch: '{{ $project->branch ?? '' }}',
         phase: 'setup',
         currentStep: '',
         steps: [],
@@ -420,41 +428,87 @@ function deployModal() {
             const csrf     = document.querySelector('meta[name="csrf-token"]').content;
             const selected = this.presets.filter(p => p.checked);
 
+            const deploySteps = this.isGit
+                ? [
+                    { label: 'Connecting to repository', status: 'pending' },
+                    { label: 'Git pull' + (this.branch ? ' (' + this.branch + ')' : ''), status: 'pending' },
+                    { label: 'Starting container', status: 'pending' },
+                  ]
+                : [
+                    { label: 'Starting project', status: 'pending' },
+                  ];
+            deploySteps[0].status = 'running';
+
             this.steps = [
-                { label: 'Starting project', status: 'running' },
+                ...deploySteps,
                 ...selected.map(p => ({ label: p.label, status: 'pending' })),
             ];
 
             // 1. Start / deploy the project
-            this.currentStep = 'Starting project\u2026';
+            this.currentStep = deploySteps[0].label + '\u2026';
             try {
-                const res = await fetch('{{ route("projects.start", $project) }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrf,
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    this.steps[0].status = 'failed';
-                    this.phase    = 'error';
-                    this.errorMsg = data.message || 'Failed to start the project. Check deployment logs.';
-                    return;
+                // Animate through git sub-steps if applicable, then call the deploy endpoint
+                if (this.isGit) {
+                    // Show each git sub-step label in sequence while the single API call runs
+                    const advanceGitStep = (idx) => {
+                        if (idx < deploySteps.length) {
+                            deploySteps[idx].status = 'running';
+                            this.currentStep = deploySteps[idx].label + '\u2026';
+                        }
+                    };
+                    // Stagger the git step labels so they feel meaningful
+                    const t1 = setTimeout(() => { deploySteps[0].status = 'done'; advanceGitStep(1); }, 800);
+                    const t2 = setTimeout(() => { deploySteps[1].status = 'done'; advanceGitStep(2); }, 1800);
+                    const res = await fetch('{{ route("projects.start", $project) }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    clearTimeout(t1); clearTimeout(t2);
+                    if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        const failIdx = deploySteps.findIndex(s => s.status === 'running');
+                        if (failIdx !== -1) deploySteps[failIdx].status = 'failed';
+                        this.phase    = 'error';
+                        this.errorMsg = data.message || 'Failed to deploy the project. Check deployment logs.';
+                        return;
+                    }
+                    deploySteps.forEach(s => { s.status = 'done'; });
+                    this.currentStep = 'Git pull complete';
+                } else {
+                    const res = await fetch('{{ route("projects.start", $project) }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        this.steps[0].status = 'failed';
+                        this.phase    = 'error';
+                        this.errorMsg = data.message || 'Failed to start the project. Check deployment logs.';
+                        return;
+                    }
+                    this.steps[0].status = 'done';
                 }
             } catch {
-                this.steps[0].status = 'failed';
+                const failIdx = this.steps.findIndex(s => s.status === 'running');
+                if (failIdx !== -1) this.steps[failIdx].status = 'failed';
                 this.phase    = 'error';
                 this.errorMsg = 'Network error while starting the project.';
                 return;
             }
-            this.steps[0].status = 'done';
 
             // 2. Run selected commands sequentially
+            const deployStepCount = deploySteps.length;
             for (let i = 0; i < selected.length; i++) {
                 const preset  = selected[i];
-                const stepIdx = i + 1;
+                const stepIdx = i + deployStepCount;
                 this.steps[stepIdx].status = 'running';
                 this.currentStep = preset.label + '\u2026';
                 this.logOutput   = '';
