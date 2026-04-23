@@ -21,6 +21,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::resource('projects', ProjectController::class);
+    Route::get('/projects/{project}/logs', [ProjectController::class, 'logsJson'])->name('projects.logs');
     Route::post('/projects/{project}/start', [ProjectController::class, 'start'])->name('projects.start');
     Route::post('/projects/{project}/stop', [ProjectController::class, 'stop'])->name('projects.stop');
     Route::post('/projects/{project}/deploy', [ProjectController::class, 'deploy'])->name('projects.deploy');
