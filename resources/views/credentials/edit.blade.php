@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="mx-auto max-w-2xl">
-    <form method="POST" action="{{ route('credentials.update', $credential) }}" x-data="{ credType: '{{ old('type', $credential->type) }}' }">
+    <form method="POST" action="{{ route('credentials.update', $credential) }}" x-data="{ credType: '{{ old('type', $credential->type) }}', showCurrentCredential: false }">
         @csrf
         @method('PUT')
 
@@ -63,6 +63,25 @@
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Leave blank to keep the current value unchanged. This value is stored encrypted.
                 </p>
+
+                <div class="mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-xs font-medium text-gray-600 dark:text-gray-300">Current saved credential</p>
+                        <button type="button"
+                                @click="showCurrentCredential = !showCurrentCredential"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                x-text="showCurrentCredential ? 'Hide' : 'View'">
+                        </button>
+                    </div>
+
+                    <textarea x-show="showCurrentCredential" x-cloak readonly rows="6"
+                              class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 shadow-sm dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                    >{{ $credential->credential }}</textarea>
+
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Use this to verify the currently saved token or key before replacing it.
+                    </p>
+                </div>
             </div>
 
         </div>
