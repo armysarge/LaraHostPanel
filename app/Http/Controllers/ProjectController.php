@@ -314,17 +314,25 @@ class ProjectController extends Controller
 
     private function resolveEnvPath(Project $project): ?string
     {
-        $base = $project->source_type === 'local' ? $project->local_path : null;
-        if (!$base) return null;
+        if ($project->source_type === 'local') {
+            $base = $project->local_path;
+            if (!$base) return null;
 
-        // Expand tilde
-        if (str_starts_with($base, '~/')) {
-            $home = rtrim(posix_getpwuid(posix_getuid())['dir'] ?? ($_SERVER['HOME'] ?? ''), '/');
-            $base = $home . substr($base, 1);
+            if (str_starts_with($base, '~/')) {
+                $home = rtrim(posix_getpwuid(posix_getuid())['dir'] ?? ($_SERVER['HOME'] ?? ''), '/');
+                $base = $home . substr($base, 1);
+            }
+
+            return rtrim($base, '/') . '/.env';
         }
 
-        $envPath = rtrim($base, '/') . '/.env';
-        return file_exists($envPath) ? $envPath : null;
+        if ($project->source_type === 'git') {
+            $deployPath = storage_path('app/deployments/' . (int) $project->id);
+            if (!is_dir($deployPath)) return null;
+            return $deployPath . '/.env';
+        }
+
+        return null;
     }
 
     public function envEdit(Project $project)
@@ -332,11 +340,14 @@ class ProjectController extends Controller
         $envPath = $this->resolveEnvPath($project);
 
         if (!$envPath) {
-            return redirect()->route('projects.show', $project)
-                ->with('error', 'No .env file found for this project.');
+            $error = $project->source_type === 'git'
+                ? 'Project has not been deployed yet. Deploy it first before editing the .env file.'
+                : 'No .env path could be determined for this project.';
+
+            return redirect()->route('projects.show', $project)->with('error', $error);
         }
 
-        $contents = file_get_contents($envPath);
+        $contents = file_exists($envPath) ? file_get_contents($envPath) : '';
 
         return view('projects.env', compact('project', 'contents', 'envPath'));
     }
