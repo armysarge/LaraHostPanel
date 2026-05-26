@@ -83,6 +83,11 @@ class DeployGitProject
         exec($cd . ' ' . escapeshellarg($deployPath) . ' && git rev-parse HEAD ' . $devNull, $hashLines);
         $commitHash = trim($hashLines[0] ?? '');
 
+        // Create public/storage symlink for Laravel projects
+        if (file_exists($deployPath . '/artisan')) {
+            exec('cd ' . escapeshellarg($deployPath) . ' && php artisan storage:link --force 2>&1');
+        }
+
         // Start the PHP server
         $ip      = filter_var($project->ip_address, FILTER_VALIDATE_IP) ?: $project->ip_address;
         $port    = (int) $project->port;
