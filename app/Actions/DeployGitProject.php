@@ -83,9 +83,20 @@ class DeployGitProject
         exec($cd . ' ' . escapeshellarg($deployPath) . ' && git rev-parse HEAD ' . $devNull, $hashLines);
         $commitHash = trim($hashLines[0] ?? '');
 
-        // Create public/storage symlink for Laravel projects
+        // Post-deploy artisan steps for Laravel projects
         if (file_exists($deployPath . '/artisan')) {
-            exec('cd ' . escapeshellarg($deployPath) . ' && php artisan storage:link --force 2>&1');
+            $artisan = 'cd ' . escapeshellarg($deployPath) . ' && php artisan';
+            // Clear stale bootstrap/config/view caches so removed packages don't linger
+            exec($artisan . ' cache:clear --quiet 2>&1');
+            exec($artisan . ' config:clear --quiet 2>&1');
+            exec($artisan . ' route:clear --quiet 2>&1');
+            exec($artisan . ' view:clear --quiet 2>&1');
+            // Re-discover packages so new service providers are registered
+            exec($artisan . ' package:discover --ansi 2>&1');
+            // Run pending migrations automatically
+            exec($artisan . ' migrate --force --quiet 2>&1');
+            // Symlink storage
+            exec($artisan . ' storage:link --force 2>&1');
         }
 
         // Start the PHP server
