@@ -134,7 +134,7 @@
 function deployModalComponent() {
     return {
         deployOpen:    false,
-        deployProject: { id: 0, name: '', branch: 'main', isGit: true, startUrl: '', commandRunUrl: '' },
+        deployProject: { id: 0, name: '', branch: 'main', isGit: true, redeploy: false, startUrl: '', commandRunUrl: '' },
         deployPhase:   'setup',
         deploySteps:   [],
         deployLog:     '',
@@ -166,17 +166,21 @@ function deployModalComponent() {
         },
         async go() {
             this.deployPhase = 'running';
-            const csrf            = document.querySelector('meta[name="csrf-token"]').content;
-            const selected        = this.presets.filter(p => p.checked);
-            const deployStepCount = this.deployProject.isGit ? 3 : 1;
+            const csrf     = document.querySelector('meta[name="csrf-token"]').content;
+            const selected = this.presets.filter(p => p.checked);
+            const redeploy = this.deployProject.isGit && this.deployProject.redeploy;
+
+            const gitSteps = [
+                ...(redeploy ? [{ label: 'Stopping project', status: 'running' }] : []),
+                { label: 'Connecting to repository',                                                              status: redeploy ? 'pending' : 'running' },
+                { label: 'Git pull' + (this.deployProject.branch ? ' (' + this.deployProject.branch + ')' : ''), status: 'pending' },
+                { label: 'Starting project',                                                                      status: 'pending' },
+            ];
+            const deployStepCount = this.deployProject.isGit ? gitSteps.length : 1;
 
             this.deploySteps = [
                 ...(this.deployProject.isGit
-                    ? [
-                        { label: 'Connecting to repository',                                                                              status: 'running' },
-                        { label: 'Git pull' + (this.deployProject.branch ? ' (' + this.deployProject.branch + ')' : ''), status: 'pending' },
-                        { label: 'Starting container',                                                                                    status: 'pending' },
-                      ]
+                    ? gitSteps
                     : [
                         { label: 'Starting project', status: 'running' },
                       ]
@@ -187,13 +191,19 @@ function deployModalComponent() {
             // 1. Start / deploy the project
             try {
                 if (this.deployProject.isGit) {
-                    const t1 = setTimeout(() => { this.deploySteps[0].status = 'done'; this.deploySteps[1].status = 'running'; }, 800);
-                    const t2 = setTimeout(() => { this.deploySteps[1].status = 'done'; this.deploySteps[2].status = 'running'; }, 1800);
+                    const stepDelay = 700;
+                    const timers = [];
+                    for (let i = 0; i < deployStepCount - 1; i++) {
+                        timers.push(setTimeout(() => {
+                            this.deploySteps[i].status = 'done';
+                            this.deploySteps[i + 1].status = 'running';
+                        }, (i + 1) * stepDelay));
+                    }
                     const res = await fetch(this.deployProject.startUrl, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     });
-                    clearTimeout(t1); clearTimeout(t2);
+                    timers.forEach(clearTimeout);
                     if (!res.ok) {
                         const data = await res.json().catch(() => ({}));
                         const fi = this.deploySteps.findIndex(s => s.status === 'running');

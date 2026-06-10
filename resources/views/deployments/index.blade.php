@@ -60,7 +60,7 @@
     </div>
 
     {{-- Deployments table --}}
-    <div x-data="{ open: [] }">
+    <div x-data="{ open: [] }" @deploy-done.window="window.location.reload()">
         <x-table :empty="$deployments->isEmpty()">
 
             <x-slot:head>
@@ -129,17 +129,15 @@
                         <td class="px-6 py-3 text-right">
                             <div class="inline-flex items-center gap-3">
                                 @if ($deployment->project && $deployment->project->source_type === 'git')
-                                    <form method="POST" action="{{ route('projects.deploy', $deployment->project) }}" class="inline">
-                                        @csrf
-                                        <button type="submit"
-                                                class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
-                                                title="Re-deploy this project">
-                                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
-                                            Re-deploy
-                                        </button>
-                                    </form>
+                                    <button type="button"
+                                            @click="window.dispatchEvent(new CustomEvent('open-deploy', {detail: { id: {{ $deployment->project->id }}, name: @js($deployment->project->name), branch: @js($deployment->project->branch ?? 'main'), isGit: true, redeploy: true, startUrl: @js(route('projects.deploy', $deployment->project)), commandRunUrl: @js(route('projects.commands.run', $deployment->project)) }}))"
+                                            class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+                                            title="Re-deploy this project">
+                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Re-deploy
+                                    </button>
                                 @endif
                                 @if ($deployment->output)
                                     <button @click="open.includes({{ $i }}) ? open.splice(open.indexOf({{ $i }}), 1) : open.push({{ $i }})"
@@ -171,6 +169,8 @@
 
         </x-table>
     </div>
+
+    <x-deploy-modal />
 
 </div>
 @endsection
