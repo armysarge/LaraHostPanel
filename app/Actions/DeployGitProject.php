@@ -86,6 +86,21 @@ class DeployGitProject
         // Post-deploy artisan steps for Laravel projects
         if (file_exists($deployPath . '/artisan')) {
             $artisan = 'cd ' . escapeshellarg($deployPath) . ' && php artisan';
+
+            $envPath = $deployPath . '/.env';
+            $envExamplePath = $deployPath . '/.env.example';
+
+            // Bootstrap .env from .env.example if the project doesn't ship one
+            if (!file_exists($envPath) && file_exists($envExamplePath)) {
+                copy($envExamplePath, $envPath);
+            }
+
+            // Generate an app key only if one isn't set yet, so repeat deploys
+            // don't invalidate existing encrypted data/sessions
+            if (file_exists($envPath) && preg_match('/^APP_KEY=\\s*$/m', file_get_contents($envPath))) {
+                exec($artisan . ' key:generate --force --ansi 2>&1');
+            }
+
             // Clear stale bootstrap/config/view caches so removed packages don't linger
             exec($artisan . ' cache:clear --quiet 2>&1');
             exec($artisan . ' config:clear --quiet 2>&1');
