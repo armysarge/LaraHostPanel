@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Log;
 
 class ProjectCommandController extends Controller
 {
+    public const INSTALL_OCTANE_COMMAND = 'composer require laravel/octane --no-interaction && php artisan octane:install --server=roadrunner --no-interaction';
+
     private const PRESET_COMMANDS = [
         ['label' => 'Migrate',           'command' => 'php artisan migrate --force'],
         ['label' => 'Migrate:Fresh',     'command' => 'php artisan migrate:fresh --force'],
@@ -25,6 +27,7 @@ class ProjectCommandController extends Controller
         ['label' => 'Composer Install',  'command' => 'composer install --no-interaction --prefer-dist --optimize-autoloader'],
         ['label' => 'NPM Install',       'command' => 'npm ci'],
         ['label' => 'NPM Build',         'command' => 'npm run build'],
+        ['label' => 'Install Octane (RoadRunner)', 'command' => self::INSTALL_OCTANE_COMMAND],
     ];
 
     // -------------------------------------------------------------------------
@@ -49,7 +52,7 @@ class ProjectCommandController extends Controller
             'label'   => ['nullable', 'string', 'max:100'],
         ]);
 
-        $workDir = $this->resolveWorkDir($project);
+        $workDir = $project->workingDirectory();
 
         if (!$workDir || !is_dir($workDir)) {
             $msg = 'Project directory not found. '
@@ -64,34 +67,9 @@ class ProjectCommandController extends Controller
             return redirect()->back()->with('error', $msg);
         }
 
-        $runId      = uniqid('cmd_', true);
-        $outputFile = storage_path('logs/cmd-' . $project->id . '-' . $runId . '.log');
-        $exitFile   = storage_path('logs/cmd-' . $project->id . '-' . $runId . '.exit');
+        $commandRun = $this->startCommandRun($project, $workDir, $request->input('command'), $request->input('label') ?: null);
 
-        /** @var ProjectCommandRun $commandRun */
-        $commandRun = $project->commandRuns()->create([
-            'command'        => $request->input('command'),
-            'label'          => $request->input('label') ?: null,
-            'status'         => 'running',
-            'output_file'    => $outputFile,
-            'exit_code_file' => $exitFile,
-            'started_at'     => now(),
-        ]);
-
-        $innerCmd = '(cd ' . escapeshellarg($workDir)
-            . ' && ' . $request->input('command') . ')'
-            . ' > ' . escapeshellarg($outputFile) . ' 2>&1'
-            . '; echo $? > ' . escapeshellarg($exitFile);
-
-        $startCmd = 'nohup bash -c ' . escapeshellarg($innerCmd) . ' > /dev/null 2>&1 & echo $!';
-        $pid      = (int) exec($startCmd);
-
-        if ($pid > 0) {
-            $commandRun->update(['pid' => $pid]);
-            Log::info("[LaraHostPanel] {$project->name} (#{$project->id}): command run #{$commandRun->id} started with PID {$pid}.");
-        } else {
-            $commandRun->update(['status' => 'failed', 'completed_at' => now(), 'exit_code' => -1]);
-
+        if (!$commandRun->pid) {
             if ($request->ajax()) {
                 return response()->json(['error' => 'Failed to start the command process.'], 500);
             }
@@ -113,6 +91,36 @@ class ProjectCommandController extends Controller
 
         return redirect()->route('projects.commands.index', $project)
             ->with('success', 'Command started.')
+            ->with('latest_run_id', $commandRun->id);
+    }
+
+    // -------------------------------------------------------------------------
+
+    /**
+     * Install Laravel Octane (RoadRunner) into this project's working
+     * directory, then redirect to the command runner to watch progress.
+     */
+    public function installOctane(Project $project)
+    {
+        $workDir = $project->workingDirectory();
+
+        if (!$workDir || !is_dir($workDir)) {
+            $msg = 'Project directory not found. '
+                . ($project->source_type === 'git'
+                    ? 'Deploy the project first so the working directory exists.'
+                    : 'Check that the local path is correct.');
+
+            return redirect()->back()->with('error', $msg);
+        }
+
+        $commandRun = $this->startCommandRun($project, $workDir, self::INSTALL_OCTANE_COMMAND, 'Install Octane (RoadRunner)');
+
+        if (!$commandRun->pid) {
+            return redirect()->back()->with('error', 'Failed to start the Octane install process.');
+        }
+
+        return redirect()->route('projects.commands.index', $project)
+            ->with('success', 'Installing Octane — watch progress below.')
             ->with('latest_run_id', $commandRun->id);
     }
 
@@ -201,13 +209,41 @@ class ProjectCommandController extends Controller
 
     // -------------------------------------------------------------------------
 
-    private function resolveWorkDir(Project $project): ?string
+    /**
+     * Create a ProjectCommandRun and launch the given command as a detached
+     * background process, writing its output/exit code to storage/logs.
+     */
+    private function startCommandRun(Project $project, string $workDir, string $command, ?string $label): ProjectCommandRun
     {
-        if ($project->source_type === 'local') {
-            return $project->local_path ?: null;
+        $runId      = uniqid('cmd_', true);
+        $outputFile = storage_path('logs/cmd-' . $project->id . '-' . $runId . '.log');
+        $exitFile   = storage_path('logs/cmd-' . $project->id . '-' . $runId . '.exit');
+
+        /** @var ProjectCommandRun $commandRun */
+        $commandRun = $project->commandRuns()->create([
+            'command'        => $command,
+            'label'          => $label,
+            'status'         => 'running',
+            'output_file'    => $outputFile,
+            'exit_code_file' => $exitFile,
+            'started_at'     => now(),
+        ]);
+
+        $innerCmd = '(cd ' . escapeshellarg($workDir)
+            . ' && ' . $command . ')'
+            . ' > ' . escapeshellarg($outputFile) . ' 2>&1'
+            . '; echo $? > ' . escapeshellarg($exitFile);
+
+        $startCmd = 'nohup bash -c ' . escapeshellarg($innerCmd) . ' > /dev/null 2>&1 & echo $!';
+        $pid      = (int) exec($startCmd);
+
+        if ($pid > 0) {
+            $commandRun->update(['pid' => $pid]);
+            Log::info("[LaraHostPanel] {$project->name} (#{$project->id}): command run #{$commandRun->id} started with PID {$pid}.");
+        } else {
+            $commandRun->update(['status' => 'failed', 'completed_at' => now(), 'exit_code' => -1]);
         }
 
-        // Git-sourced: use the deployment directory
-        return storage_path('app/deployments/' . (int) $project->id);
+        return $commandRun;
     }
 }

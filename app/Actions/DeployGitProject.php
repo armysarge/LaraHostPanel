@@ -115,17 +115,8 @@ class DeployGitProject
         }
 
         // Start the PHP server
-        $ip      = filter_var($project->ip_address, FILTER_VALIDATE_IP) ?: $project->ip_address;
-        $port    = (int) $project->port;
         $logFile = storage_path('logs/project-' . $project->id . '.log');
-
-        if (file_exists($deployPath . '/artisan')) {
-            $serve = "php artisan serve --host={$ip} --port={$port}";
-        } elseif (is_dir($deployPath . '/public')) {
-            $serve = 'php -S ' . $ip . ':' . $port . ' -t ' . escapeshellarg($deployPath . '/public');
-        } else {
-            $serve = 'php -S ' . $ip . ':' . $port;
-        }
+        $serve   = $project->buildServeCommand($deployPath);
 
         $pid = $this->spawnServer($serve, $deployPath, $logFile);
 

@@ -138,6 +138,17 @@
                 </label>
             </div>
 
+            {{-- App server --}}
+            <div>
+                <label for="app_server" class="block text-sm font-medium text-gray-700 dark:text-gray-300">App Server</label>
+                <select id="app_server" name="app_server"
+                        class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                    <option value="serve" {{ old('app_server', 'serve') === 'serve' ? 'selected' : '' }}>PHP Built-in (artisan serve)</option>
+                    <option value="octane" {{ old('app_server', 'serve') === 'octane' ? 'selected' : '' }}>Laravel Octane (RoadRunner)</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Octane requires <code>laravel/octane</code> and the RoadRunner binary to be installed in this project's deployment directory.</p>
+            </div>
+
         </div>
 
         {{-- Actions --}}

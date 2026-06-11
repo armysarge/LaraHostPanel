@@ -138,8 +138,33 @@
                 </label>
             </div>
 
+            {{-- App server --}}
+            <div>
+                <label for="app_server" class="block text-sm font-medium text-gray-700 dark:text-gray-300">App Server</label>
+                <select id="app_server" name="app_server"
+                        class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                    <option value="serve" {{ old('app_server', $project->app_server) === 'serve' ? 'selected' : '' }}>PHP Built-in (artisan serve)</option>
+                    <option value="octane" {{ old('app_server', $project->app_server) === 'octane' ? 'selected' : '' }}>Laravel Octane (RoadRunner)</option>
+                </select>
+                @if ($project->hasOctaneInstalled())
+                    <p class="mt-1 text-xs text-green-600 dark:text-green-400">✓ Octane (RoadRunner) is installed in this project's directory.</p>
+                @else
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Octane is not installed in this project's directory yet.
+                        <button type="submit" form="install-octane-form"
+                                class="font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+                            Install Octane now
+                        </button>
+                    </p>
+                @endif
+            </div>
+
         </div>
 
+    </form>
+
+    <form id="install-octane-form" method="POST" action="{{ route('projects.octane.install', $project) }}" class="hidden">
+        @csrf
     </form>
 
     {{-- Actions --}}

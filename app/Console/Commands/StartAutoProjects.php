@@ -112,17 +112,7 @@ class StartAutoProjects extends Command
             return;
         }
 
-        // ── Build the serve command (mirrors ProjectController::start logic) ───
-        $ip   = filter_var($project->ip_address, FILTER_VALIDATE_IP) ?: $project->ip_address;
-        $port = (int) $project->port;
-
-        if (file_exists($path . '/artisan')) {
-            $serve = "php artisan serve --host={$ip} --port={$port}";
-        } elseif (is_dir($path . '/public')) {
-            $serve = 'php -S ' . $ip . ':' . $port . ' -t ' . escapeshellarg($path . '/public');
-        } else {
-            $serve = 'php -S ' . $ip . ':' . $port;
-        }
+        $serve = $project->buildServeCommand($path);
 
         // env -i gives the child a clean environment so its own .env loads
         // correctly without inheriting LaraHostPanel's DB_CONNECTION, APP_KEY, etc.

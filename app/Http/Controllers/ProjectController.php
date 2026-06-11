@@ -42,6 +42,7 @@ class ProjectController extends Controller
             'auto_deploy'          => ['boolean'],
             'auto_deploy_interval' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'auto_start'           => ['boolean'],
+            'app_server'           => ['required', Rule::in(['serve', 'octane'])],
         ]);
 
         $validated['auto_deploy'] = $request->boolean('auto_deploy');
@@ -106,6 +107,7 @@ class ProjectController extends Controller
             'auto_deploy'          => ['boolean'],
             'auto_deploy_interval' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'auto_start'           => ['boolean'],
+            'app_server'           => ['required', Rule::in(['serve', 'octane'])],
         ]);
 
         $validated['auto_deploy'] = $request->boolean('auto_deploy');
@@ -146,8 +148,7 @@ class ProjectController extends Controller
                 return $this->jsonOrRedirect($request, false, $message);
             }
 
-            $ip   = filter_var($project->ip_address, FILTER_VALIDATE_IP);
-            $port = (int) $project->port;
+            $ip = filter_var($project->ip_address, FILTER_VALIDATE_IP);
 
             if (!$ip) {
                 $message = "Invalid IP address configured for this project: {$project->ip_address}";
@@ -165,13 +166,7 @@ class ProjectController extends Controller
             $logFile = storage_path('logs/project-' . $project->id . '.log');
             $startedAt = now();
 
-            if (file_exists($path . '/artisan')) {
-                $serve = "php artisan serve --host={$ip} --port={$port}";
-            } elseif (is_dir($path . '/public')) {
-                $serve = 'php -S ' . $ip . ':' . $port . ' -t ' . escapeshellarg($path . '/public');
-            } else {
-                $serve = 'php -S ' . $ip . ':' . $port;
-            }
+            $serve = $project->buildServeCommand($path);
 
             $cmd = 'cd ' . escapeshellarg($path)
                 // env -i gives the child process a clean environment so it doesn't

@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/projects/{project}/deploy', [ProjectController::class, 'deploy'])->name('projects.deploy');
     Route::get('/projects/{project}/env', [ProjectController::class, 'envEdit'])->name('projects.env.edit');
     Route::put('/projects/{project}/env', [ProjectController::class, 'envUpdate'])->name('projects.env.update');
+    Route::post('/projects/{project}/octane/install', [ProjectCommandController::class, 'installOctane'])->name('projects.octane.install');
 
     Route::get('/projects/{project}/commands', [ProjectCommandController::class, 'index'])->name('projects.commands.index');
     Route::post('/projects/{project}/commands', [ProjectCommandController::class, 'run'])->name('projects.commands.run');
