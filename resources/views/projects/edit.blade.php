@@ -157,6 +157,15 @@
                         </button>
                     </p>
                 @endif
+                @if ($project->isGitSource())
+                    <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        ⚠ Installing Octane changes <code>composer.json</code>, <code>composer.lock</code>,
+                        <code>config/octane.php</code>, and <code>.gitignore</code> in this deployment.
+                        Commit and push those files from your project's own working copy — otherwise the next
+                        auto-deploy that pulls a remote change will run <code>git reset --hard</code> and revert
+                        them, and a future <code>composer install</code> could remove Octane again.
+                    </p>
+                @endif
             </div>
 
         </div>
