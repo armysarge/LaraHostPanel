@@ -121,9 +121,9 @@ class StartAutoProjects extends Command
             . ' HOME=' . escapeshellarg($homeDir)
             . ' PATH=' . escapeshellarg($pathEnv)
             . ' ' . $serve
-            . ' > ' . escapeshellarg($logFile) . ' 2>&1 & echo $!';
+            . ' < /dev/null > ' . escapeshellarg($logFile) . ' 2>&1 & echo $!';
 
-        $pid = (int) trim(exec($cmd));
+        $pid = $this->runLauncher($cmd);
 
         if ($pid > 0) {
             $project->update(['status' => 'running', 'pid' => $pid]);
@@ -134,5 +134,59 @@ class StartAutoProjects extends Command
             $this->error("  ✗ Failed to start — check {$logFile}");
             Log::error("app:start-auto-projects: Failed to start {$project->name} — check {$logFile}");
         }
+    }
+
+    /**
+     * Run a `cmd & echo $!`-style launcher and return the backgrounded PID.
+     *
+     * We've seen this launcher shell occasionally wedge indefinitely instead
+     * of exiting right after backgrounding the job (observed with Octane's
+     * roadrunner server; root cause unconfirmed). A plain exec() would block
+     * forever reading the shell's stdout pipe in that case, which stalls
+     * every later auto-start project and the panel's own `php artisan serve`.
+     * proc_open() gives us the exact launcher PID so we can forcibly kill
+     * *it* (not its already-detached, already-redirected grandchild) once a
+     * generous deadline passes, without depending on the external `timeout`
+     * binary's own child-tracking.
+     */
+    private function runLauncher(string $cmd, int $timeoutSeconds = 10): int
+    {
+        $descriptors = [
+            0 => ['file', '/dev/null', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open(['sh', '-c', $cmd], $descriptors, $pipes);
+
+        if (!is_resource($process)) {
+            return 0;
+        }
+
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $out = '';
+        $deadline = microtime(true) + $timeoutSeconds;
+        $status = proc_get_status($process);
+
+        while ($status['running'] && microtime(true) < $deadline) {
+            $out .= stream_get_contents($pipes[1]);
+            usleep(100_000);
+            $status = proc_get_status($process);
+        }
+
+        if ($status['running']) {
+            Log::warning("app:start-auto-projects: Launcher did not exit within {$timeoutSeconds}s; killing it (the service itself may already be up — check its log).");
+            proc_terminate($process, SIGKILL);
+            usleep(200_000);
+        }
+
+        $out .= stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        return (int) trim($out);
     }
 }

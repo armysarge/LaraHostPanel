@@ -2,6 +2,7 @@
 Description=LaraHostPanel - Laravel Project Management Server
 Documentation=https://github.com/armysarge/LaraHostPanel
 After=network.target
+RequiresMountsFor=__WORKDIR__
 
 [Service]
 Type=simple
