@@ -49,9 +49,7 @@ class AutoDeployProjects extends Command
 
                 // Kill any running process before pulling
                 if ($project->pid) {
-                    $pid = (int) $project->pid;
-                    exec("kill -TERM {$pid} 2>/dev/null");
-                    exec("pkill -TERM -P {$pid} 2>/dev/null");
+                    $project->terminateProcess();
                     $project->update(['status' => 'deploying', 'pid' => null]);
                 }
 

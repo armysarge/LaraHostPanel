@@ -27,16 +27,17 @@ class StartAutoProjects extends Command
      */
     public function handle()
     {
-        // ── 1. Reset stale "running" statuses (PIDs that died on reboot/crash)
-        //        and remember their IDs so we can restart them below. ──────────
+        // ── 1. Reset stale "running" statuses (PIDs that died on reboot/crash,
+        //        or were recycled by an unrelated process) and remember their
+        //        IDs so we can restart them below. ──────────────────────────────
         $wasRunningIds = [];
 
         Project::where('status', 'running')->each(function (Project $project) use (&$wasRunningIds) {
-            $pid = (int) $project->pid;
-            if (!$pid || !file_exists("/proc/{$pid}")) {
+            if (!$project->hasLiveProcess()) {
+                $pid = (int) $project->pid;
                 $wasRunningIds[] = $project->id;
                 $project->update(['status' => 'stopped', 'pid' => null]);
-                Log::info("app:start-auto-projects: Reset stale running status for {$project->name} (PID {$pid} no longer exists)");
+                Log::info("app:start-auto-projects: Reset stale running status for {$project->name} (PID {$pid} is no longer this project's server)");
             }
         });
 

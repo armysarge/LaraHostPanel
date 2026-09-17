@@ -70,6 +70,57 @@ class Project extends Model
         return $this->status === 'running';
     }
 
+    /**
+     * Whether the stored PID is still *this project's* server process.
+     *
+     * A bare `/proc/{pid}` existence check is not enough: PIDs are recycled,
+     * and after a reboot the early-boot PIDs we recorded (e.g. 756) are
+     * routinely handed to unrelated processes. Every launcher starts the
+     * server with `cd <working dir> && nohup env -i … serve`, so the real
+     * process's cwd is the project's working directory — anything else
+     * holding that PID isn't ours.
+     */
+    public function hasLiveProcess(): bool
+    {
+        $pid = (int) $this->pid;
+        $path = $this->workingDirectory();
+
+        if ($pid <= 0 || $path === null) {
+            return false;
+        }
+
+        // Unreadable (no such PID, or owned by another user) → not ours.
+        $cwd = @readlink("/proc/{$pid}/cwd");
+        if ($cwd === false) {
+            return false;
+        }
+
+        // The kernel appends " (deleted)" if the directory was removed
+        // underneath the running process (e.g. a re-clone).
+        if (str_ends_with($cwd, ' (deleted)')) {
+            $cwd = substr($cwd, 0, -strlen(' (deleted)'));
+        }
+
+        return $cwd === (realpath($path) ?: $path);
+    }
+
+    /**
+     * Send SIGTERM to the project's server and its children — but only if the
+     * stored PID is verifiably this project's, so a recycled PID never gets an
+     * unrelated process killed.
+     */
+    public function terminateProcess(): void
+    {
+        if (!$this->hasLiveProcess()) {
+            return;
+        }
+
+        $pid = (int) $this->pid;
+        exec("kill -TERM {$pid} 2>/dev/null");
+        // Also terminate child processes (e.g. spawned by artisan serve)
+        exec("pkill -TERM -P {$pid} 2>/dev/null");
+    }
+
     public function isGitSource(): bool
     {
         return $this->source_type === 'git';

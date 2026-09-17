@@ -222,11 +222,7 @@ class ProjectController extends Controller
         }
 
         // Kill any running process first
-        if ($project->pid) {
-            $pid = (int) $project->pid;
-            exec("kill -TERM {$pid} 2>/dev/null");
-            exec("pkill -TERM -P {$pid} 2>/dev/null");
-        }
+        $project->terminateProcess();
 
         $project->update(['status' => 'deploying', 'pid' => null]);
 
@@ -265,12 +261,7 @@ class ProjectController extends Controller
             return $this->jsonOrRedirect($request, true, "\"$project->name\" is already stopped.");
         }
 
-        if ($project->pid) {
-            $pid = (int) $project->pid;
-            exec("kill -TERM {$pid} 2>/dev/null");
-            // Also terminate child processes (e.g. spawned by artisan serve)
-            exec("pkill -TERM -P {$pid} 2>/dev/null");
-        }
+        $project->terminateProcess();
 
         $project->update(['status' => 'stopped', 'pid' => null]);
 
@@ -280,11 +271,7 @@ class ProjectController extends Controller
     public function destroy(Project $project)
     {
         // Stop the running process first
-        if ($project->pid) {
-            $pid = (int) $project->pid;
-            exec("kill -TERM {$pid} 2>/dev/null");
-            exec("pkill -TERM -P {$pid} 2>/dev/null");
-        }
+        $project->terminateProcess();
 
         // For git-sourced projects, remove the cloned deployment folder
         if ($project->source_type === 'git') {
